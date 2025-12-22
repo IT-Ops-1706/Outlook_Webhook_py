@@ -1,7 +1,7 @@
 import requests
 import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Set
 import config
 from services.graph_service import graph_service
 
@@ -130,12 +130,115 @@ class SubscriptionManager:
             response.raise_for_status()
             
             subscription = response.json()
-            logger.info(f"Renewed subscription {subscription_id}")
+            logger.info(f"Renewed subscription {subscription_id} until {subscription['expirationDateTime']}")
             return subscription
         
         except Exception as e:
             logger.error(f"Failed to renew subscription: {e}")
             raise
+    
+    async def ensure_all_subscriptions(self, utilities: List) -> Dict[str, str]:
+        """
+        Ensure subscriptions exist for all unique mailboxes across all utilities.
+        Returns dict mapping 'mailbox:folder' to subscription_id
+        """
+        # Collect unique mailbox/folder combinations
+        needed_subscriptions: Set[tuple] = set()
+        
+        for utility in utilities:
+            if not utility.enabled:
+                continue
+            
+            mailboxes = utility.subscriptions.get('mailboxes', [])
+            for mb in mailboxes:
+                address = mb['address']
+                folders = mb.get('folders', ['Inbox'])
+                for folder in folders:
+                    needed_subscriptions.add((address, folder))
+        
+        logger.info(f"Need subscriptions for {len(needed_subscriptions)} unique mailbox/folder combinations")
+        
+        # Get existing subscriptions
+        existing = self.list_subscriptions()
+        existing_map = {}
+        
+        for sub in existing:
+            resource = sub['resource']
+            # Parse resource to extract mailbox and folder
+            mailbox, folder = self._parse_resource(resource)
+            if mailbox and folder:
+                existing_map[f"{mailbox}:{folder}"] = sub['id']
+        
+        # Create missing subscriptions
+        subscription_map = {}
+        for mailbox, folder in needed_subscriptions:
+            key = f"{mailbox}:{folder}"
+            
+            if key in existing_map:
+                logger.info(f"Subscription already exists for {key}")
+                subscription_map[key] = existing_map[key]
+            else:
+                logger.info(f"Creating subscription for {mailbox}/{folder}")
+                try:
+                    sub = self.create_subscription(mailbox, folder)
+                    subscription_map[key] = sub['id']
+                except Exception as e:
+                    logger.error(f"Failed to create subscription for {key}: {e}")
+        
+        return subscription_map
+    
+    def _parse_resource(self, resource: str) -> tuple:
+        """Parse resource string to extract mailbox and folder"""
+        # Format: users/{mailbox}/messages or users/{mailbox}/mailFolders/{folder}/messages
+        parts = resource.split('/')
+        
+        if len(parts) >= 3:
+            mailbox = parts[1]
+            
+            if 'mailFolders' in parts:
+                # Extract folder name
+                folder_idx = parts.index('mailFolders') + 1
+                if folder_idx < len(parts):
+                    folder = parts[folder_idx]
+                    return mailbox, folder
+            else:
+                return mailbox, "Inbox"
+        
+        return None, None
+    
+    async def check_and_renew_subscriptions(self):
+        """Check all subscriptions and renew those expiring soon"""
+        try:
+            subscriptions = self.list_subscriptions()
+            
+            now = datetime.utcnow()
+            renewed_count = 0
+            
+            for sub in subscriptions:
+                expiration_str = sub.get('expirationDateTime', '')
+                if not expiration_str:
+                    continue
+                
+                # Parse expiration datetime
+                expiration = datetime.fromisoformat(expiration_str.replace('Z', '+00:00'))
+                time_left = expiration - now
+                
+                # Renew if less than 24 hours left
+                if time_left < timedelta(hours=24):
+                    logger.info(f"Subscription {sub['id']} expires in {time_left}, renewing...")
+                    try:
+                        self.renew_subscription(sub['id'])
+                        renewed_count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to renew subscription {sub['id']}: {e}")
+            
+            if renewed_count > 0:
+                logger.info(f"Successfully renewed {renewed_count} subscriptions")
+            else:
+                logger.info("No subscriptions needed renewal")
+        
+        except Exception as e:
+            logger.error(f"Error in subscription renewal check: {e}")
 
 # Global instance
 subscription_manager = SubscriptionManager()
