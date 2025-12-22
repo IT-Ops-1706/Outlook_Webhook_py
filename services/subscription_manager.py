@@ -211,7 +211,9 @@ class SubscriptionManager:
         try:
             subscriptions = self.list_subscriptions()
             
-            now = datetime.utcnow()
+            # Use timezone-aware datetime (UTC)
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
             renewed_count = 0
             
             for sub in subscriptions:
@@ -219,7 +221,7 @@ class SubscriptionManager:
                 if not expiration_str:
                     continue
                 
-                # Parse expiration datetime
+                # Parse expiration datetime (already timezone-aware)
                 expiration = datetime.fromisoformat(expiration_str.replace('Z', '+00:00'))
                 time_left = expiration - now
                 
