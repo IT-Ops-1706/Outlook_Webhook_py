@@ -12,6 +12,7 @@ CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 TENANT_ID = os.getenv('TENANT_ID')
 USER_EMAIL = os.getenv('USER_EMAIL')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL', 'https://outlook-webhook-py.onrender.com/webhook')
+WEBHOOK_CLIENT_STATE = os.getenv('WEBHOOK_CLIENT_STATE', 'SecretClientState')
 
 def get_access_token():
     """Get access token using client credentials flow"""
@@ -96,7 +97,7 @@ def create_subscription(access_token, webhook_url, user_email):
         'notificationUrl': webhook_url,
         'resource': f'users/{user_email}/messages',
         'expirationDateTime': expiration_str,
-        'clientState': 'SecretClientState123'
+        'clientState': WEBHOOK_CLIENT_STATE
     }
     
     headers = {
