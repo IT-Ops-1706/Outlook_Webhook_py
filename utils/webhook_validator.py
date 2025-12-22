@@ -10,7 +10,7 @@ class WebhookValidator:
     """Validate Microsoft Graph webhook notifications"""
     
     def __init__(self):
-        self.client_state = config.WEBHOOK_CLIENT_STATE if hasattr(config, 'WEBHOOK_CLIENT_STATE') else 'SecretClientState'
+        self.client_state = config.WEBHOOK_CLIENT_STATE if hasattr(config, 'WEBHOOK_CLIENT_STATE') else 'babajishivram@1706'
     
     async def validate_notification(self, data: dict) -> bool:
         """
