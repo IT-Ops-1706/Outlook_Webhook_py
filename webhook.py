@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Query, HTTPException
 from fastapi.responses import PlainTextResponse
 from typing import Optional
-from .services import get_email_details, USER_EMAIL
+from services import get_email_details, USER_EMAIL
 
 router = APIRouter()
 

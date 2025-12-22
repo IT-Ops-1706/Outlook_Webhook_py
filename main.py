@@ -6,8 +6,8 @@ from typing import Optional
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
-from .services import get_latest_emails, get_email_details, USER_EMAIL, ensure_subscription
-from .webhook import router as webhook_router
+from services import get_latest_emails, get_email_details, USER_EMAIL, ensure_subscription
+from webhook import router as webhook_router
 
 load_dotenv()
 
