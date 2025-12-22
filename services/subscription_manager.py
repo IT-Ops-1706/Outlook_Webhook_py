@@ -33,7 +33,7 @@ class SubscriptionManager:
             'notificationUrl': config.WEBHOOK_URL,
             'resource': resource,
             'expirationDateTime': expiration.isoformat() + 'Z',
-            'clientState': 'SecretClientState'
+            'clientState': config.WEBHOOK_CLIENT_STATE
         }
         
         headers = {
