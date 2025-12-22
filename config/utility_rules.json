@@ -1,0 +1,57 @@
+{
+  "utilities": [
+    {
+      "id": "example_utility",
+      "name": "Example Email Processor",
+      "enabled": false,
+      
+      "subscriptions": {
+        "mailboxes": [
+          {
+            "address": "example@company.com",
+            "folders": ["Inbox"]
+          }
+        ]
+      },
+      
+      "pre_filters": {
+        "match_logic": "AND",
+        
+        "subject": {
+          "contains": ["Example"],
+          "regex": null
+        },
+        
+        "body": {
+          "contains": [],
+          "regex": null
+        },
+        
+        "sender": {
+          "exact": null,
+          "in_list": [],
+          "contains": []
+        },
+        
+        "receiver": {
+          "in_list": [],
+          "contains": []
+        },
+        
+        "attachments": {
+          "required": false,
+          "filename_contains": []
+        },
+        
+        "direction": "both"
+      },
+      
+      "endpoint": {
+        "url": "https://example-api.company.com/process",
+        "method": "POST"
+      },
+      
+      "timeout": 10
+    }
+  ]
+}
