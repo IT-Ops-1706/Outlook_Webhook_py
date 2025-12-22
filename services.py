@@ -110,8 +110,11 @@ def create_subscription(access_token, webhook_url, user_email):
         return response.json()
     except Exception as e:
         print(f"Error creating subscription: {e}")
-        if hasattr(e, 'response') and e.response:
-            print(f"Response: {e.response.text}")
+        if hasattr(e, 'response') and e.response is not None:
+            try:
+                print(f"Error Details: {e.response.json()}")
+            except:
+                print(f"Response Body: {e.response.text}")
         raise
 
 def list_subscriptions(access_token):

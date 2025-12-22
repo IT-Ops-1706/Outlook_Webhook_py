@@ -25,7 +25,9 @@ async def subscription_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
-    print("Server starting up. Initiating subscription check...")
+    print("Server starting up. Waiting 5 seconds for network readiness...")
+    await asyncio.sleep(5)
+    print("Initiating subscription check...")
     # Run initial check immediately
     await ensure_subscription()
     # Start the background loop
