@@ -44,11 +44,22 @@ class EmailMetadata:
     
     def to_dict(self):
         """Convert to dictionary for JSON serialization"""
+        import base64
+        
         data = asdict(self)
         data['direction'] = self.direction
+        
         # Convert datetime to ISO format
         if self.received_datetime:
             data['received_datetime'] = self.received_datetime.isoformat()
         if self.sent_datetime:
             data['sent_datetime'] = self.sent_datetime.isoformat()
+        
+        # Handle attachment bytes - convert to base64 string for JSON
+        if data.get('attachments'):
+            for attachment in data['attachments']:
+                if 'content' in attachment and isinstance(attachment['content'], bytes):
+                    # Convert bytes to base64 string
+                    attachment['content'] = base64.b64encode(attachment['content']).decode('utf-8')
+        
         return data
