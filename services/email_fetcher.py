@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 from models.email_metadata import EmailMetadata
 from services.graph_service import graph_service
+from services.attachment_downloader import attachment_downloader
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +25,21 @@ class EmailFetcher:
         # Fetch from Graph API
         email_data = self.graph.fetch_email(mailbox, message_id)
         
+        # Download attachments if present
+        attachments = []
+        if email_data.get('hasAttachments'):
+            try:
+                attachments = await attachment_downloader.download_attachments(
+                    mailbox,
+                    message_id
+                )
+                logger.info(f"Downloaded {len(attachments)} attachments for message {message_id}")
+            except Exception as e:
+                logger.error(f"Failed to download attachments: {e}")
+                # Continue without attachments rather than failing completely
+        
         # Parse into EmailMetadata
-        return self._parse_email_data(email_data, mailbox)
+        return self._parse_email_data(email_data, mailbox, attachments)
     
     def _parse_resource(self, resource: str) -> tuple:
         """Parse resource string to extract mailbox and message ID"""
@@ -40,7 +54,7 @@ class EmailFetcher:
         
         return None, None
     
-    def _parse_email_data(self, data: dict, mailbox: str) -> EmailMetadata:
+    def _parse_email_data(self, data: dict, mailbox: str, attachments: list = []) -> EmailMetadata:
         """Parse Graph API response into EmailMetadata"""
         
         # Parse timestamps
@@ -78,11 +92,9 @@ class EmailFetcher:
             for r in data.get('bccRecipients', [])
         ]
         
-        # Parse attachments
-        attachments = [
-            {'name': att.get('name', ''), 'size': att.get('size', 0)}
-            for att in data.get('attachments', [])
-        ]
+        # Use downloaded attachments (already have full content)
+        # If no attachments downloaded, fallback to empty list
+        attachment_list = attachments if attachments else []
         
         # Determine folder (simplified - would need folder lookup for accuracy)
         folder = 'Inbox'  # Default, can be enhanced with folder API call
@@ -104,7 +116,7 @@ class EmailFetcher:
             received_datetime=received_dt,
             sent_datetime=sent_dt,
             has_attachments=data.get('hasAttachments', False),
-            attachments=attachments,
+            attachments=attachment_list,
             mailbox=mailbox,
             folder=folder
         )

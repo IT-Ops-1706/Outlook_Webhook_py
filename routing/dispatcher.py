@@ -1,9 +1,12 @@
 import asyncio
 import aiohttp
 import logging
+import time
 from typing import List
 from models.email_metadata import EmailMetadata
 from models.utility_config import UtilityConfig
+from utils.retry_handler import retry_handler
+from utils.processing_logger import processing_logger
 import config
 
 logger = logging.getLogger(__name__)
@@ -23,7 +26,14 @@ class Dispatcher:
         if not utilities:
             return
         
-        logger.info(f"Dispatching to {len(utilities)} utilities: {[u.name for u in utilities]}")
+        utility_names = [u.name for u in utilities]
+        logger.info(f"Dispatching to {len(utilities)} utilities: {utility_names}")
+        
+        # Log matched utilities
+        processing_logger.log_utilities_matched(
+            email.internet_message_id,
+            utility_names
+        )
         
         tasks = [
             Dispatcher._forward_to_utility(email, utility)
@@ -32,18 +42,38 @@ class Dispatcher:
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
+        # Count successes and failures
+        success_count = 0
+        failure_count = 0
+        
         # Log results
         for utility, result in zip(utilities, results):
             if isinstance(result, Exception):
                 logger.error(f"Utility '{utility.name}' failed: {result}")
+                failure_count += 1
             else:
                 logger.info(f"Utility '{utility.name}' succeeded")
+                success_count += 1
+        
+        return {
+            'success_count': success_count,
+            'failure_count': failure_count
+        }
     
     @staticmethod
     async def _forward_to_utility(email: EmailMetadata, utility: UtilityConfig):
-        """POST to utility API with rate limiting"""
+        """POST to utility API with rate limiting, retry, and logging"""
         async with semaphore:
-            try:
+            start_time = time.time()
+            
+            # Log call start
+            processing_logger.log_utility_call_start(
+                email.internet_message_id,
+                utility.name,
+                utility.endpoint['url']
+            )
+            
+            async def call_utility():
                 timeout = aiohttp.ClientTimeout(total=utility.timeout)
                 
                 async with aiohttp.ClientSession() as session:
@@ -61,9 +91,30 @@ class Dispatcher:
                             # Non-JSON response (e.g., webhook.site returns HTML)
                             return {"status": "success", "response": await response.text()}
             
-            except asyncio.TimeoutError:
-                logger.error(f"Timeout calling utility '{utility.name}'")
-                raise
+            try:
+                # Execute with retry (3 attempts for connection failures)
+                result = await retry_handler.execute_with_retry(
+                    call_utility,
+                    utility.name
+                )
+                
+                # Log success
+                response_time_ms = int((time.time() - start_time) * 1000)
+                processing_logger.log_utility_call_success(
+                    email.internet_message_id,
+                    utility.name,
+                    response_time_ms
+                )
+                
+                return result
+            
             except Exception as e:
+                # Log failure
+                processing_logger.log_utility_call_failure(
+                    email.internet_message_id,
+                    utility.name,
+                    str(e)
+                )
+                
                 logger.error(f"Error calling utility '{utility.name}': {e}")
                 raise
