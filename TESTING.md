@@ -1,6 +1,6 @@
 # Webhook Testing Guide
 
-## ✅ Step 1: Email Fetching (WORKING)
+## Step 1: Email Fetching (WORKING)
 
 You've confirmed this works:
 ```
@@ -9,11 +9,11 @@ http://localhost:8000/test/fetch-emails?mailbox=it.ops@babajishivram.com
 
 ---
 
-## 🔔 Step 2: Set Up Webhooks
+## Step 2: Set Up Webhooks
 
 ### Prerequisites
 
-**IMPORTANT:** Webhooks require a **publicly accessible URL**. You have 2 options:
+IMPORTANT: Webhooks require a publicly accessible URL. You have 2 options:
 
 #### Option A: Deploy to Render (Recommended)
 1. Push code to GitHub
@@ -32,7 +32,7 @@ ngrok http 8000
 
 ---
 
-## 📋 Step 3: Check Existing Subscriptions
+## Step 3: Check Existing Subscriptions
 
 ```
 http://localhost:8000/test/subscriptions
@@ -42,21 +42,21 @@ This will show all active subscriptions. You might see old ones from Render.
 
 ---
 
-## ➕ Step 4: Create New Subscription
+## Step 4: Create New Subscription
 
-**IMPORTANT:** Only do this AFTER you have a public URL!
+IMPORTANT: Only do this AFTER you have a public URL!
 
 ```
 http://localhost:8000/test/create-subscription?mailbox=it.ops@babajishivram.com&folder=Inbox
 ```
 
-**What happens:**
+What happens:
 1. Microsoft Graph receives your subscription request
 2. Microsoft sends a validation request to your webhook URL
 3. Your `/webhook` endpoint must respond with the validation token
 4. Subscription is created
 
-**Expected response:**
+Expected response:
 ```json
 {
   "success": true,
@@ -71,12 +71,12 @@ http://localhost:8000/test/create-subscription?mailbox=it.ops@babajishivram.com&
 
 ---
 
-## 🧪 Step 5: Test Webhook
+## Step 5: Test Webhook
 
 Once subscription is created:
 
-1. **Send a test email** to `it.ops@babajishivram.com`
-2. **Check your server logs** - you should see:
+1. Send a test email to `it.ops@babajishivram.com`
+2. Check your server logs - you should see:
    ```
    Received 1 webhook notifications
    Processing email: 'Your test subject' from sender@example.com
@@ -85,7 +85,7 @@ Once subscription is created:
 
 ---
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### "Subscription validation request failed"
 - Your webhook URL is not publicly accessible
@@ -101,10 +101,10 @@ Once subscription is created:
 
 ---
 
-## 🎯 Current Status
+## Current Status
 
-- ✅ Email fetching works
-- ⏳ Subscription creation (needs public URL)
-- ⏳ Webhook notifications (needs active subscription)
+- Email fetching works
+- Subscription creation (needs public URL)
+- Webhook notifications (needs active subscription)
 
-**Next:** Deploy to Render or use ngrok to get a public URL!
+Next: Deploy to Render or use ngrok to get a public URL!

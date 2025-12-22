@@ -53,7 +53,13 @@ class Dispatcher:
                         timeout=timeout
                     ) as response:
                         response.raise_for_status()
-                        return await response.json()
+                        
+                        # Try to parse JSON, but accept any successful response
+                        try:
+                            return await response.json()
+                        except:
+                            # Non-JSON response (e.g., webhook.site returns HTML)
+                            return {"status": "success", "response": await response.text()}
             
             except asyncio.TimeoutError:
                 logger.error(f"Timeout calling utility '{utility.name}'")
