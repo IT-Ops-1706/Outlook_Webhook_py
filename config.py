@@ -13,6 +13,9 @@ WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 WEBHOOK_CLIENT_STATE = os.getenv('WEBHOOK_CLIENT_STATE', 'SecretClientState')
 PORT = int(os.getenv('PORT', 8000))
 
+# Security - Admin API Authentication
+API_BEARER_KEY = os.getenv('API_BEARER_KEY')
+
 # Database API
 DATABASE_API_URL = os.getenv('DATABASE_API_URL')
 USE_DATABASE_CONFIG = os.getenv('USE_DATABASE_CONFIG', 'false').lower() == 'true'

@@ -1,14 +1,19 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 import logging
 from services.graph_service import graph_service
 from services.subscription_manager import subscription_manager
+from utils.auth import verify_bearer_token
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 @router.get("/test/fetch-emails")
-async def test_fetch_emails(mailbox: str = "it.ops@babajishivram.com", limit: int = 5):
+async def test_fetch_emails(
+    mailbox: str = "it.ops@babajishivram.com",
+    limit: int = 5,
+    auth: str = Depends(verify_bearer_token)
+):
     """Test endpoint to fetch latest emails from a mailbox"""
     try:
         token = graph_service.get_access_token()
@@ -57,7 +62,7 @@ async def test_fetch_emails(mailbox: str = "it.ops@babajishivram.com", limit: in
         }
 
 @router.get("/test/subscriptions")
-async def list_subscriptions():
+async def list_subscriptions(auth: str = Depends(verify_bearer_token)):
     """List all active webhook subscriptions"""
     try:
         subscriptions = subscription_manager.list_subscriptions()
@@ -81,7 +86,11 @@ async def list_subscriptions():
         return {"error": str(e)}
 
 @router.post("/test/create-subscription")
-async def create_subscription(mailbox: str = "it.ops@babajishivram.com", folder: str = "Inbox"):
+async def create_subscription(
+    mailbox: str = "it.ops@babajishivram.com",
+    folder: str = "Inbox",
+    auth: str = Depends(verify_bearer_token)
+):
     """Create a new webhook subscription"""
     try:
         subscription = subscription_manager.create_subscription(mailbox, folder)
@@ -104,7 +113,10 @@ async def create_subscription(mailbox: str = "it.ops@babajishivram.com", folder:
         }
 
 @router.delete("/test/delete-subscription/{subscription_id}")
-async def delete_subscription(subscription_id: str):
+async def delete_subscription(
+    subscription_id: str,
+    auth: str = Depends(verify_bearer_token)
+):
     """Delete a webhook subscription"""
     try:
         subscription_manager.delete_subscription(subscription_id)
@@ -113,3 +125,4 @@ async def delete_subscription(subscription_id: str):
     except Exception as e:
         logger.error(f"Error deleting subscription: {e}")
         return {"success": False, "error": str(e)}
+
