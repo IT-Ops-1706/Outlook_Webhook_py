@@ -31,11 +31,21 @@ class EmailMetadata:
     
     # Attachments
     has_attachments: bool = False
-    attachments: List[dict] = field(default_factory=list)
+    attachment_metadata: List[dict] = field(default_factory=list)  # Names, sizes (always loaded)
+    attachments: List[dict] = field(default_factory=list)  # Full content (lazy loaded)
     
     # Context
     mailbox: str = ""
     folder: str = "Inbox"  # 'Inbox', 'Sent Items', etc.
+    
+    @property
+    def attachments_loaded(self) -> bool:
+        """Check if full attachment content is loaded"""
+        if not self.has_attachments:
+            return True  # No attachments to load
+        
+        # Check if attachments have content
+        return len(self.attachments) > 0 and 'content' in self.attachments[0]
     
     @property
     def direction(self) -> str:

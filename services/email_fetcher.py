@@ -13,8 +13,11 @@ class EmailFetcher:
     def __init__(self):
         self.graph = graph_service
     
-    async def fetch_email(self, notification: dict) -> EmailMetadata:
-        """Fetch full email from notification"""
+    async def fetch_email_metadata(self, notification: dict) -> EmailMetadata:
+        """
+        Fetch email metadata WITHOUT downloading attachments.
+        Attachments can be loaded later with load_attachments().
+        """
         # Extract mailbox and message ID from notification
         resource = notification.get('resource', '')
         mailbox, message_id = self._parse_resource(resource)
@@ -25,21 +28,67 @@ class EmailFetcher:
         # Fetch from Graph API
         email_data = self.graph.fetch_email(mailbox, message_id)
         
-        # Download attachments if present
-        attachments = []
+        # Get attachment metadata (names, sizes) but NOT content
+        attachment_metadata = []
         if email_data.get('hasAttachments'):
-            try:
-                attachments = await attachment_downloader.download_attachments(
-                    mailbox,
-                    message_id
-                )
-                logger.info(f"Downloaded {len(attachments)} attachments for message {message_id}")
-            except Exception as e:
-                logger.error(f"Failed to download attachments: {e}")
-                # Continue without attachments rather than failing completely
+            # Extract metadata from Graph API response
+            attachment_metadata = self._extract_attachment_metadata(email_data)
+            logger.info(f"Found {len(attachment_metadata)} attachments (metadata only)")
         
-        # Parse into EmailMetadata
-        return self._parse_email_data(email_data, mailbox, attachments)
+        # Parse into EmailMetadata (without attachment content)
+        return self._parse_email_data(
+            email_data,
+            mailbox,
+            attachment_metadata=attachment_metadata,
+            attachments=[]  # Empty - not loaded yet
+        )
+    
+    async def load_attachments(self, email: EmailMetadata) -> EmailMetadata:
+        """
+        Download and attach full attachment content.
+        Only call this after pre-filter matching succeeds.
+        """
+        if not email.has_attachments:
+            return email  # Nothing to load
+        
+        if email.attachments_loaded:
+            logger.debug(f"Attachments already loaded for {email.message_id}")
+            return email  # Already loaded
+        
+        try:
+            # Download full attachments
+            attachments = await attachment_downloader.download_attachments(
+                email.mailbox,
+                email.message_id
+            )
+            logger.info(f"Downloaded {len(attachments)} attachments for message {email.message_id}")
+            
+            # Update email object
+            email.attachments = attachments
+            
+        except Exception as e:
+            logger.error(f"Failed to download attachments: {e}")
+            # Continue without attachments rather than failing completely
+            email.attachments = []
+        
+        return email
+    
+    def _extract_attachment_metadata(self, email_data: dict) -> list:
+        """Extract attachment names and sizes from email data"""
+        # Graph API includes basic attachment info in the email response
+        attachments_info = email_data.get('attachments', [])
+        
+        metadata = []
+        for att in attachments_info:
+            metadata.append({
+                'id': att.get('id', ''),
+                'name': att.get('name', ''),
+                'size': att.get('size', 0),
+                'content_type': att.get('contentType', ''),
+                'is_inline': att.get('isInline', False)
+            })
+        
+        return metadata
     
     def _parse_resource(self, resource: str) -> tuple:
         """Parse resource string to extract mailbox and message ID"""
@@ -54,7 +103,13 @@ class EmailFetcher:
         
         return None, None
     
-    def _parse_email_data(self, data: dict, mailbox: str, attachments: list = []) -> EmailMetadata:
+    def _parse_email_data(
+        self,
+        data: dict,
+        mailbox: str,
+        attachment_metadata: list = [],
+        attachments: list = []
+    ) -> EmailMetadata:
         """Parse Graph API response into EmailMetadata"""
         
         # Parse timestamps
@@ -92,10 +147,6 @@ class EmailFetcher:
             for r in data.get('bccRecipients', [])
         ]
         
-        # Use downloaded attachments (already have full content)
-        # If no attachments downloaded, fallback to empty list
-        attachment_list = attachments if attachments else []
-        
         # Determine folder (simplified - would need folder lookup for accuracy)
         folder = 'Inbox'  # Default, can be enhanced with folder API call
         
@@ -116,7 +167,8 @@ class EmailFetcher:
             received_datetime=received_dt,
             sent_datetime=sent_dt,
             has_attachments=data.get('hasAttachments', False),
-            attachments=attachment_list,
+            attachment_metadata=attachment_metadata,
+            attachments=attachments,
             mailbox=mailbox,
             folder=folder
         )

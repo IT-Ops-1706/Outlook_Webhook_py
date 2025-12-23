@@ -85,22 +85,27 @@ async def process_single_email(notification: dict, utilities: list):
     start_time = time.time()
     
     try:
-        # Fetch full email
-        email = await email_fetcher.fetch_email(notification)
+        # Step 1: Fetch metadata only (fast, small memory footprint)
+        email = await email_fetcher.fetch_email_metadata(notification)
         
         # Log email fetched
         processing_logger.log_email_fetched(email.to_dict())
         
         logger.info(f"Processing email: '{email.subject[:50]}' from {email.from_address}")
         
-        # Match to utilities
+        # Step 2: Match to utilities (uses metadata only, no attachments needed)
         matched = await RuleMatcher.find_matching_utilities(email, utilities)
         
         if not matched:
             logger.debug(f"Email matched no utilities, skipping")
-            return
+            return  # Exit early - no attachment download! Memory saved ✓
         
-        # Dispatch to matched utilities
+        # Step 3: Load attachments ONLY if email matched utilities
+        if email.has_attachments and not email.attachments_loaded:
+            logger.info(f"Loading {len(email.attachment_metadata)} attachments for matched email")
+            email = await email_fetcher.load_attachments(email)
+        
+        # Step 4: Dispatch to matched utilities
         result = await Dispatcher.dispatch_to_utilities(email, matched)
         
         # Log processing complete
