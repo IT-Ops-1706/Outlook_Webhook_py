@@ -126,3 +126,31 @@ async def delete_subscription(
         logger.error(f"Error deleting subscription: {e}")
         return {"success": False, "error": str(e)}
 
+@router.get("/test/config")
+async def view_config(auth: str = Depends(verify_bearer_token)):
+    """View loaded utility configuration (for debugging)"""
+    try:
+        from services.config_service import config_service
+        import asyncio
+        
+        utilities = await config_service.get_all_utilities()
+        
+        return {
+            "count": len(utilities),
+            "utilities": [
+                {
+                    "id": u.id,
+                    "name": u.name,
+                    "enabled": u.enabled,
+                    "endpoint_url": u.endpoint.get('url'),
+                    "has_auth": 'auth' in u.endpoint,
+                    "mailboxes": [m['address'] for m in u.subscriptions.get('mailboxes', [])],
+                    "filter_type": "advanced" if 'condition_groups' in u.pre_filters else "legacy"
+                }
+                for u in utilities
+            ]
+        }
+    
+    except Exception as e:
+        logger.error(f"Error fetching config: {e}")
+        return {"error": str(e)}
