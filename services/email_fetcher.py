@@ -20,13 +20,43 @@ class EmailFetcher:
         """
         # Extract mailbox and message ID from notification
         resource = notification.get('resource', '')
-        mailbox, message_id = self._parse_resource(resource)
+        logger.debug(f"Processing notification resource: {resource}")
         
-        if not mailbox or not message_id:
+        mailbox_id, message_id, folder = self._parse_resource(resource)
+        
+        if not mailbox_id or not message_id:
             raise ValueError(f"Invalid notification resource: {resource}")
         
+        logger.debug(f"Parsed: mailbox_id={mailbox_id}, message_id={message_id}, folder={folder}")
+        
+        # Resolve mailbox UUID to email address using configured mailboxes
+        from services.config_service import config_service
+        utilities = await config_service.get_all_utilities()
+        
+        # Collect all unique mailbox addresses from all utilities
+        all_mailboxes = {}
+        for utility in utilities:
+            for mb in utility.subscriptions.get('mailboxes', []):
+                # Store email address (we'll use this for matching)
+                all_mailboxes[mb['address'].lower()] = mb['address']
+        
+        logger.debug(f"Configured mailboxes: {list(all_mailboxes.values())}")
+        
+        # For single mailbox setup, use it directly
+        # (This works because subscriptions are created for these mailboxes)
+        if len(all_mailboxes) == 1:
+            mailbox_email = list(all_mailboxes.values())[0]
+            logger.debug(f"Single mailbox mode: {mailbox_id} → {mailbox_email}")
+        else:
+            # Multiple mailboxes - would need Graph API lookup or UUID mapping
+            # For now, use the first one and log warning
+            mailbox_email = list(all_mailboxes.values())[0] if all_mailboxes else mailbox_id
+            logger.warning(f"Multiple mailboxes detected, using first: {mailbox_email}")
+        
+        logger.info(f"Resolved mailbox: {mailbox_id} → {mailbox_email}")
+        
         # Fetch from Graph API
-        email_data = self.graph.fetch_email(mailbox, message_id)
+        email_data = self.graph.fetch_email(mailbox_id, message_id)
         
         # Get attachment metadata (names, sizes) but NOT content
         attachment_metadata = []
@@ -38,7 +68,8 @@ class EmailFetcher:
         # Parse into EmailMetadata (without attachment content)
         return self._parse_email_data(
             email_data,
-            mailbox,
+            mailbox_email,  # Use resolved email address
+            folder,  # Use parsed folder
             attachment_metadata=attachment_metadata,
             attachments=[]  # Empty - not loaded yet
         )
@@ -91,22 +122,37 @@ class EmailFetcher:
         return metadata
     
     def _parse_resource(self, resource: str) -> tuple:
-        """Parse resource string to extract mailbox and message ID"""
+        """Parse resource string to extract mailbox, message ID, and folder"""
         # Format: users/{mailbox}/messages/{messageId}
         # or: users/{mailbox}/mailFolders/{folder}/messages/{messageId}
         parts = resource.split('/')
         
+        logger.debug(f"Parsing resource parts: {parts}")
+        
         if len(parts) >= 4:
             mailbox = parts[1]
             message_id = parts[-1]
-            return mailbox, message_id
+            
+            # Detect folder from resource path
+            if 'mailFolders' in parts:
+                folder_idx = parts.index('mailFolders') + 1
+                if folder_idx < len(parts):
+                    folder_name = parts[folder_idx]
+                    # Map folder IDs to names
+                    if folder_name == 'SentItems':
+                        folder = 'Sent Items'
+                    else:
+                        folder = folder_name
+            
+            return mailbox, message_id, folder
         
-        return None, None
+        return None, None, 'Inbox'
     
     def _parse_email_data(
         self,
         data: dict,
         mailbox: str,
+        folder: str = 'Inbox',
         attachment_metadata: list = [],
         attachments: list = []
     ) -> EmailMetadata:
@@ -147,8 +193,8 @@ class EmailFetcher:
             for r in data.get('bccRecipients', [])
         ]
         
-        # Determine folder (simplified - would need folder lookup for accuracy)
-        folder = 'Inbox'  # Default, can be enhanced with folder API call
+        # Folder is now passed as parameter
+        logger.debug(f"Creating EmailMetadata: mailbox={mailbox}, folder={folder}, subject={data.get('subject', '')[:50]}")
         
         return EmailMetadata(
             message_id=data.get('id', ''),
