@@ -154,3 +154,40 @@ async def view_config(auth: str = Depends(verify_bearer_token)):
     except Exception as e:
         logger.error(f"Error fetching config: {e}")
         return {"error": str(e)}
+
+@router.get("/test/employee-details")
+async def test_employee_details(
+    email: str = "it.ops@babajishivram.com",
+    auth: str = Depends(verify_bearer_token)
+):
+    """Test endpoint to fetch employee details from Microsoft 365"""
+    try:
+        from services.graph_service import graph_service
+        
+        logger.info(f"Fetching employee details for: {email}")
+        
+        # Fetch employee details
+        employee_data = graph_service.get_user_details(email)
+        
+        if employee_data:
+            return {
+                "success": True,
+                "email": email,
+                "employee_details": employee_data,
+                "message": "Employee data enrichment working!"
+            }
+        else:
+            return {
+                "success": False,
+                "email": email,
+                "employee_details": None,
+                "message": "Employee not found or not an internal user"
+            }
+    
+    except Exception as e:
+        logger.error(f"Error fetching employee details: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "email": email
+        }

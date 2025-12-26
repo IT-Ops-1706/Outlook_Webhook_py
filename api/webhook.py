@@ -100,12 +100,41 @@ async def process_single_email(notification: dict, utilities: list):
             logger.debug(f"Email matched no utilities, skipping")
             return  # Exit early - no attachment download! Memory saved ✓
         
-        # Step 3: Load attachments ONLY if email matched utilities
+        # Step 3: Enrich employee data if any matched utility needs it
+        needs_enrichment = any(u.enrich_employee_data for u in matched)
+        
+        if needs_enrichment:
+            logger.info(f"Enriching employee data for matched utilities")
+            from services.graph_service import graph_service
+            
+            # Enrich sender if internal
+            if email.from_address:
+                sender_details = graph_service.get_user_details(email.from_address)
+                if sender_details:
+                    email.sender_employee_data = sender_details
+                    logger.debug(f"Enriched sender: {email.from_address} → {sender_details}")
+            
+            # Enrich recipients if internal
+            email.recipient_employee_data = []
+            for recipient in email.to_recipients:
+                recipient_email = recipient.get('address')
+                if recipient_email:
+                    recipient_details = graph_service.get_user_details(recipient_email)
+                    if recipient_details:
+                        email.recipient_employee_data.append({
+                            'email': recipient_email,
+                            'name': recipient.get('name'),
+                            **recipient_details
+                        })
+                        logger.debug(f"Enriched recipient: {recipient_email}")
+
+        
+        # Step 4: Load attachments ONLY if email matched utilities
         if email.has_attachments and not email.attachments_loaded:
             logger.info(f"Loading {len(email.attachment_metadata)} attachments for matched email")
             email = await email_fetcher.load_attachments(email)
         
-        # Step 4: Dispatch to matched utilities
+        # Step 5: Dispatch to matched utilities
         result = await Dispatcher.dispatch_to_utilities(email, matched)
         
         # Log processing complete
