@@ -222,21 +222,25 @@ async def cleanup_subscriptions(auth: str = Depends(verify_bearer_token)):
         from services.config_service import config_service
         utilities = await config_service.get_all_utilities()
         
-        new_subs = subscription_manager.ensure_all_subscriptions(utilities)
+        # ensure_all_subscriptions is async - must await it
+        new_subs = await subscription_manager.ensure_all_subscriptions(utilities)
+        
+        # new_subs is a dict, get the subscription objects
+        subscription_list = list(new_subs.values()) if new_subs else []
         
         return {
             "success": True,
             "deleted_count": deleted_count,
-            "recreated_count": len(new_subs),
+            "recreated_count": len(subscription_list),
             "subscriptions": [
                 {
                     "id": sub.get('id'),
                     "resource": sub.get('resource'),
                     "expirationDateTime": sub.get('expirationDateTime')
                 }
-                for sub in new_subs
+                for sub in subscription_list
             ],
-            "message": f"✅ Cleaned up {deleted_count} old subscriptions, created {len(new_subs)} fresh ones"
+            "message": f"✅ Cleaned up {deleted_count} old subscriptions, created {len(subscription_list)} fresh ones"
         }
     
     except Exception as e:

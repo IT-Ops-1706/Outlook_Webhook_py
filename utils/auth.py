@@ -1,12 +1,18 @@
-from fastapi import Header, HTTPException
+from fastapi import HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import logging
 import config
 
 logger = logging.getLogger(__name__)
 
-async def verify_bearer_token(authorization: str = Header(..., alias="Authorization")):
+# Define security scheme for Swagger UI
+security = HTTPBearer()
+
+async def verify_bearer_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """
     Verify Bearer token for admin/internal endpoints.
+    
+    This will show a 🔒 lock icon in Swagger UI for easy auth.
     
     Usage:
         @router.get("/test/endpoint")
@@ -23,16 +29,8 @@ async def verify_bearer_token(authorization: str = Header(..., alias="Authorizat
             detail="Server authentication not configured"
         )
     
-    # Check if authorization header starts with "Bearer "
-    if not authorization.startswith("Bearer "):
-        logger.warning("Invalid authorization header format")
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Expected: 'Bearer <token>'"
-        )
-    
-    # Extract token
-    token = authorization.replace("Bearer ", "", 1).strip()
+    # Extract token from credentials
+    token = credentials.credentials
     
     # Verify token
     if token != config.API_BEARER_KEY:
