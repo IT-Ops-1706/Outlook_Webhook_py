@@ -191,3 +191,58 @@ async def test_employee_details(
             "error": str(e),
             "email": email
         }
+
+@router.post("/test/cleanup-subscriptions")
+async def cleanup_subscriptions(auth: str = Depends(verify_bearer_token)):
+    """Delete all webhook subscriptions and recreate them (fixes duplicates)"""
+    try:
+        logger.info("Starting subscription cleanup...")
+        
+        # Get all current subscriptions
+        current_subs = subscription_manager.list_subscriptions()
+        logger.info(f"Found {len(current_subs)} existing subscriptions")
+        
+        # Delete all
+        deleted_count = 0
+        for sub in current_subs:
+            try:
+                subscription_manager.delete_subscription(sub['id'])
+                deleted_count += 1
+                logger.info(f"Deleted subscription: {sub['id']}")
+            except Exception as e:
+                logger.error(f"Failed to delete subscription {sub['id']}: {e}")
+        
+        logger.info(f"Deleted {deleted_count} subscriptions")
+        
+        # Wait a moment for Microsoft to process
+        import asyncio
+        await asyncio.sleep(2)
+        
+        # Recreate fresh subscriptions
+        from services.config_service import config_service
+        utilities = await config_service.get_all_utilities()
+        
+        new_subs = subscription_manager.ensure_all_subscriptions(utilities)
+        
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "recreated_count": len(new_subs),
+            "subscriptions": [
+                {
+                    "id": sub.get('id'),
+                    "resource": sub.get('resource'),
+                    "expirationDateTime": sub.get('expirationDateTime')
+                }
+                for sub in new_subs
+            ],
+            "message": f"✅ Cleaned up {deleted_count} old subscriptions, created {len(new_subs)} fresh ones"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error cleaning up subscriptions: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
