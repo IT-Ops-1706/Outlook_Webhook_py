@@ -155,6 +155,9 @@ class EmailFetcher:
             mailbox = parts[1]
             message_id = parts[-1]
             
+            # Default folder
+            folder = 'Inbox'
+            
             # Detect folder from resource path
             if 'mailFolders' in parts:
                 folder_idx = parts.index('mailFolders') + 1
@@ -164,8 +167,9 @@ class EmailFetcher:
                     if folder_name == 'SentItems':
                         folder = 'Sent Items'
                     else:
-                        folder = folder_name
+                        folder = folder_name  # Keep as-is
             
+            logger.debug(f"Parsed resource → mailbox={mailbox}, message_id={message_id}, folder={folder}")
             return mailbox, message_id, folder
         
         return None, None, 'Inbox'
