@@ -31,7 +31,23 @@ class EmailFetcher:
         
         # Resolve mailbox UUID to email address using configured mailboxes
         from services.config_service import config_service
+        logger.debug("=" * 60)
+        logger.debug("FETCHING UTILITY CONFIGURATIONS")
+        logger.debug("=" * 60)
+        
         utilities = await config_service.get_all_utilities()
+        logger.debug(f"Loaded {len(utilities)} utilities from config")
+        
+        # Log each utility's details
+        for idx, utility in enumerate(utilities, 1):
+            logger.debug(f"\nUtility #{idx}:")
+            logger.debug(f"  ID: {utility.id}")
+            logger.debug(f"  Name: {utility.name}")
+            logger.debug(f"  Enabled: {utility.enabled}")
+            logger.debug(f"  Endpoint: {utility.endpoint.get('url')}")
+            logger.debug(f"  Has Auth: {'auth' in utility.endpoint}")
+            logger.debug(f"  Mailboxes: {[m['address'] for m in utility.subscriptions.get('mailboxes', [])]}")
+            logger.debug(f"  Filter Type: {'advanced' if 'condition_groups' in utility.pre_filters else 'legacy'}")
         
         # Collect all unique mailbox addresses from all utilities
         all_mailboxes = {}
@@ -40,20 +56,26 @@ class EmailFetcher:
                 # Store email address (we'll use this for matching)
                 all_mailboxes[mb['address'].lower()] = mb['address']
         
-        logger.debug(f"Configured mailboxes: {list(all_mailboxes.values())}")
+        logger.debug(f"\nConfigured mailboxes summary: {list(all_mailboxes.values())}")
+        logger.debug(f"Total unique mailboxes: {len(all_mailboxes)}")
         
         # For single mailbox setup, use it directly
         # (This works because subscriptions are created for these mailboxes)
         if len(all_mailboxes) == 1:
             mailbox_email = list(all_mailboxes.values())[0]
-            logger.debug(f"Single mailbox mode: {mailbox_id} → {mailbox_email}")
+            logger.debug(f"\n✅ SINGLE MAILBOX MODE")
+            logger.debug(f"Mapping: {mailbox_id} → {mailbox_email}")
         else:
             # Multiple mailboxes - would need Graph API lookup or UUID mapping
             # For now, use the first one and log warning
             mailbox_email = list(all_mailboxes.values())[0] if all_mailboxes else mailbox_id
-            logger.warning(f"Multiple mailboxes detected, using first: {mailbox_email}")
+            logger.warning(f"\n⚠️  MULTIPLE MAILBOXES DETECTED")
+            logger.warning(f"Using first mailbox: {mailbox_email}")
+            logger.warning(f"This may need Graph API lookup for proper resolution")
         
-        logger.info(f"Resolved mailbox: {mailbox_id} → {mailbox_email}")
+        logger.info(f"\n🔄 MAILBOX RESOLUTION: {mailbox_id} → {mailbox_email}")
+        logger.debug("=" * 60)
+
         
         # Fetch from Graph API
         email_data = self.graph.fetch_email(mailbox_id, message_id)

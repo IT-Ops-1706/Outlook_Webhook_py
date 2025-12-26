@@ -42,11 +42,36 @@ class RuleMatcher:
     @staticmethod
     def _matches_utility(email: EmailMetadata, utility: UtilityConfig) -> bool:
         """Check if email matches utility filters (supports both old and new formats)"""
+        logger.debug(f"\n{'='*60}")
+        logger.debug(f"CHECKING MATCH: {utility.name}")
+        logger.debug(f"{'='*60}")
+        
         filters = utility.pre_filters
+        
+        # First check: Mailbox subscription
+        subscribed_mailboxes = [
+            mb['address'].lower() 
+            for mb in utility.subscriptions.get('mailboxes', [])
+        ]
+        
+        logger.debug(f"Email mailbox: {email.mailbox}")
+        logger.debug(f"Subscribed mailboxes: {subscribed_mailboxes}")
+        
+        mailbox_match = email.mailbox.lower() in subscribed_mailboxes
+        logger.debug(f"Mailbox match: {mailbox_match}")
+        
+        if not mailbox_match:
+            logger.debug(f"❌ Mailbox mismatch - skipping utility")
+            return False
+        
+        logger.debug(f"✅ Mailbox matched!")
         
         # Check if using new advanced filter format
         if 'condition_groups' in filters:
-            return RuleMatcher._matches_advanced_filters(email, filters, utility)
+            logger.debug(f"Using ADVANCED filter format")
+            result = RuleMatcher._matches_advanced_filters(email, filters, utility)
+            logger.debug(f"Advanced filter result: {result}")
+            return result
         
         # Fallback to legacy filter format (backward compatibility)
         return RuleMatcher._matches_legacy_filters(email, filters, utility)
