@@ -109,7 +109,7 @@ async def process_single_email(notification: dict, utilities: list):
             
             # Enrich sender if internal
             if email.from_address:
-                sender_details = graph_service.get_user_details(email.from_address)
+                sender_details = graph_service.fetch_user_details(email.from_address)
                 if sender_details:
                     email.sender_employee_data = sender_details
                     logger.debug(f"Enriched sender: {email.from_address} → {sender_details}")
@@ -119,7 +119,7 @@ async def process_single_email(notification: dict, utilities: list):
             for recipient in email.to_recipients:
                 recipient_email = recipient.get('address')
                 if recipient_email:
-                    recipient_details = graph_service.get_user_details(recipient_email)
+                    recipient_details = graph_service.fetch_user_details(recipient_email)
                     if recipient_details:
                         email.recipient_employee_data.append({
                             'email': recipient_email,

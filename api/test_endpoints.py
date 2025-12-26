@@ -167,7 +167,7 @@ async def test_employee_details(
         logger.info(f"Fetching employee details for: {email}")
         
         # Fetch employee details
-        employee_data = graph_service.get_user_details(email)
+        employee_data = graph_service.fetch_user_details(email)
         
         if employee_data:
             return {
