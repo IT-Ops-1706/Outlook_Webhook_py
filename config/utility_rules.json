@@ -61,7 +61,7 @@
       },
       
       "endpoint": {
-        "url": "http://localhost:8001/process",
+        "url": "https://3f1a6a60f0ed.ngrok-free.app/process",
         "method": "POST",
         "auth": {
           "type": "bearer",
