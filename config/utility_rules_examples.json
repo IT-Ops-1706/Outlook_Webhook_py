@@ -1,0 +1,194 @@
+{
+  "utilities": [
+    {
+      "id": "example_legacy",
+      "name": "Legacy Format Example (Backward Compatible)",
+      "enabled": true,
+      
+      "subscriptions": {
+        "mailboxes": [
+          {"address": "it.ops@babajishivram.com", "folders": ["Inbox"]}
+        ]
+      },
+      
+      "pre_filters": {
+        "match_logic": "AND",
+        "subject": {
+          "contains": ["Invoice"],
+          "regex": null
+        },
+        "sender": {
+          "exact": "vendor@example.com"
+        },
+        "attachments": {
+          "required": true
+        }
+      },
+      
+      "endpoint": {
+        "url": "https://webhook.site/your-endpoint",
+        "method": "POST"
+      },
+      
+      "timeout": 30
+    },
+    
+    {
+      "id": "example_advanced_simple",
+      "name": "Advanced Format - Simple Example",
+      "enabled": true,
+      
+      "subscriptions": {
+        "mailboxes": [
+          {"address": "it.ops@babajishivram.com", "folders": ["Inbox"]}
+        ]
+      },
+      
+      "pre_filters": {
+        "condition_groups": [
+          {
+            "name": "Main Filters",
+            "logic": "AND",
+            "conditions": [
+              {
+                "field": "from_address",
+                "operator": "equals",
+                "value": "vendor@example.com",
+                "negate": false
+              },
+              {
+                "field": "subject",
+                "operator": "contains",
+                "value": "Invoice",
+                "negate": false
+              },
+              {
+                "field": "subject",
+                "operator": "contains",
+                "value": "Spam",
+                "negate": true
+              },
+              {
+                "field": "has_attachments",
+                "operator": "equals",
+                "value": true,
+                "negate": false
+              }
+            ]
+          }
+        ],
+        "group_logic": "AND"
+      },
+      
+      "endpoint": {
+        "url": "https://webhook.site/your-endpoint",
+        "method": "POST"
+      },
+      
+      "timeout": 30
+    },
+    
+    {
+      "id": "example_advanced_complex",
+      "name": "Advanced Format - Complex Example",
+      "enabled": true,
+      
+      "subscriptions": {
+        "mailboxes": [
+          {"address": "it.ops@babajishivram.com", "folders": ["Inbox"]}
+        ]
+      },
+      
+      "pre_filters": {
+        "condition_groups": [
+          {
+            "name": "Sender Group",
+            "logic": "OR",
+            "conditions": [
+              {"field": "from_address", "operator": "equals", "value": "vendor1@example.com"},
+              {"field": "from_address", "operator": "equals", "value": "vendor2@example.com"},
+              {"field": "from_address", "operator": "contains", "value": "@trusted-domain.com"}
+            ]
+          },
+          {
+            "name": "Subject Keywords",
+            "logic": "OR",
+            "conditions": [
+              {"field": "subject", "operator": "contains", "value": "Invoice"},
+              {"field": "subject", "operator": "contains", "value": "Payment"},
+              {"field": "subject", "operator": "regex", "value": "ID[_-]\\d+"}
+            ]
+          },
+          {
+            "name": "Exclusions",
+            "logic": "AND",
+            "conditions": [
+              {"field": "subject", "operator": "contains", "value": "Spam", "negate": true},
+              {"field": "subject", "operator": "contains", "value": "Test", "negate": true},
+              {"field": "body_content", "operator": "contains", "value": "unsubscribe", "negate": true}
+            ]
+          },
+          {
+            "name": "Attachment Requirements",
+            "logic": "AND",
+            "conditions": [
+              {"field": "has_attachments", "operator": "equals", "value": true},
+              {"field": "attachment_count", "operator": "greater_than", "value": 0},
+              {"field": "attachment_names", "operator": "ends_with", "value": ".pdf"}
+            ]
+          }
+        ],
+        "group_logic": "AND"
+      },
+      
+      "endpoint": {
+        "url": "https://webhook.site/your-endpoint",
+        "method": "POST"
+      },
+      
+      "timeout": 30
+    },
+    
+    {
+      "id": "example_advanced_negation",
+      "name": "Advanced Format - Negation Examples",
+      "enabled": true,
+      
+      "subscriptions": {
+        "mailboxes": [
+          {"address": "it.ops@babajishivram.com", "folders": ["Inbox"]}
+        ]
+      },
+      
+      "pre_filters": {
+        "condition_groups": [
+          {
+            "name": "Include Filters",
+            "logic": "AND",
+            "conditions": [
+              {"field": "subject", "operator": "contains", "value": "Important"},
+              {"field": "from_address", "operator": "in", "value": ["vendor@example.com", "finance@example.com"]}
+            ]
+          },
+          {
+            "name": "Exclude Filters (using negate)",
+            "logic": "AND",
+            "conditions": [
+              {"field": "subject", "operator": "contains", "value": "Spam", "negate": true},
+              {"field": "subject", "operator": "contains", "value": "Newsletter", "negate": true},
+              {"field": "from_address", "operator": "contains", "value": "noreply", "negate": true}
+            ]
+          }
+        ],
+        "group_logic": "AND"
+      },
+      
+      "endpoint": {
+        "url": "https://webhook.site/your-endpoint",
+        "method": "POST"
+      },
+      
+      "timeout": 30
+    }
+  ]
+}

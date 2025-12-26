@@ -1,51 +1,76 @@
 {
   "utilities": [
     {
-      "id": "test_utility",
-      "name": "Test Email Processor",
+      "id": "email_thread_tracker",
+      "name": "Email Thread Tracker - Rate Requests & Urgent Enquiries",
       "enabled": true,
       
       "subscriptions": {
         "mailboxes": [
           {
             "address": "it.ops@babajishivram.com",
-            "folders": ["Inbox"]
+            "folders": ["Inbox", "Sent Items"]
           }
         ]
       },
       
       "pre_filters": {
-        "match_logic": "OR",
-        "subject": {
-          "contains": ["test", "webhook"],
-          "regex": null
-        },
-        "body": {
-          "contains": [],
-          "regex": null
-        },
-        "sender": {
-          "exact": null,
-          "in_list": [],
-          "contains": []
-        },
-        "receiver": {
-          "in_list": [],
-          "contains": []
-        },
-        "attachments": {
-          "required": false,
-          "filename_contains": []
-        },
-        "direction": "both"
+        "condition_groups": [
+          {
+            "name": "Enquiry Keywords",
+            "logic": "OR",
+            "conditions": [
+              {"field": "subject", "operator": "contains", "value": "rate request", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "freight rate", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "quotation", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "quote shared", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "rate offered", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "rate validity", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "validity expires", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "indicative rate", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "firm rate", "case_sensitive": false},
+              {"field": "body_content", "operator": "contains", "value": "rate request", "case_sensitive": false},
+              {"field": "body_content", "operator": "contains", "value": "freight rate", "case_sensitive": false},
+              {"field": "body_content", "operator": "contains", "value": "quotation", "case_sensitive": false}
+            ]
+          },
+          {
+            "name": "Urgency Keywords",
+            "logic": "OR",
+            "conditions": [
+              {"field": "subject", "operator": "contains", "value": "urgent shipment", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "immediate action required", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "urgent response", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "time critical", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "production impact", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "shutdown", "case_sensitive": false},
+              {"field": "body_content", "operator": "contains", "value": "urgent shipment", "case_sensitive": false},
+              {"field": "body_content", "operator": "contains", "value": "immediate action required", "case_sensitive": false}
+            ]
+          },
+          {
+            "name": "Quality Keywords",
+            "logic": "OR",
+            "conditions": [
+              {"field": "subject", "operator": "contains", "value": "dissatisfactory", "case_sensitive": false},
+              {"field": "body_content", "operator": "contains", "value": "dissatisfactory", "case_sensitive": false}
+            ]
+          }
+        ],
+        "group_logic": "OR"
       },
       
       "endpoint": {
-        "url": "https://webhook.site/e4bf9c19-d92a-43b1-9f82-c533c8e0f484",
-        "method": "POST"
+        "url": "http://localhost:8001/process",
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "token": "${TOKEN_UTIL_EMAIL_THREAD_TRACKER}"
+        }
       },
       
-      "timeout": 10
+      "timeout": 30,
+      "enrich_employee_data": true
     }
   ]
 }

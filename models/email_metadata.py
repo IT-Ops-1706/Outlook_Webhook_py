@@ -34,6 +34,10 @@ class EmailMetadata:
     attachment_metadata: List[dict] = field(default_factory=list)  # Names, sizes (always loaded)
     attachments: List[dict] = field(default_factory=list)  # Full content (lazy loaded)
     
+    # Employee Data (enriched from Microsoft Graph)
+    sender_employee_data: Optional[dict] = None  # Department, office, location, etc.
+    recipient_employee_data: List[dict] = field(default_factory=list)  # Employee data for recipients
+    
     # Context
     mailbox: str = ""
     folder: str = "Inbox"  # 'Inbox', 'Sent Items', etc.

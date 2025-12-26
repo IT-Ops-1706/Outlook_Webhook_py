@@ -80,6 +80,62 @@ class GraphService:
         except Exception as e:
             logger.error(f"Failed to fetch email {message_id}: {e}")
             raise
+    
+    def fetch_user_details(self, email_address: str) -> Optional[dict]:
+        """
+        Fetch user details from Microsoft Graph (department, office, location)
+        
+        Only fetches for users in your organization (babajishivram.com).
+        External users will return None.
+        
+        Returns:
+            dict with keys: department, office_location, city, country, job_title
+            None if user not found or external user
+        """
+        # Check if user is from your organization
+        if not email_address.lower().endswith('@babajishivram.com'):
+            logger.debug(f"Skipping employee data fetch for external user: {email_address}")
+            return None
+        
+        token = self.get_access_token()
+        
+        url = f'https://graph.microsoft.com/v1.0/users/{email_address}'
+        
+        params = {
+            '$select': 'department,officeLocation,city,country,jobTitle,displayName,mail'
+        }
+        
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'
+        }
+        
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            
+            # User not found in organization
+            if response.status_code == 404:
+                logger.debug(f"User {email_address} not found in organization")
+                return None
+            
+            response.raise_for_status()
+            
+            user_data = response.json()
+            logger.debug(f"Fetched user details for: {email_address}")
+            
+            return {
+                'email': user_data.get('mail', email_address),
+                'display_name': user_data.get('displayName', ''),
+                'department': user_data.get('department', ''),
+                'office_location': user_data.get('officeLocation', ''),
+                'city': user_data.get('city', ''),
+                'country': user_data.get('country', ''),
+                'job_title': user_data.get('jobTitle', '')
+            }
+        
+        except Exception as e:
+            logger.error(f"Failed to fetch user details for {email_address}: {e}")
+            return None
 
 # Global instance
 graph_service = GraphService()

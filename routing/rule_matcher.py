@@ -1,13 +1,22 @@
 import re
 import logging
-from typing import List
+from typing import List, Any
 from models.email_metadata import EmailMetadata
 from models.utility_config import UtilityConfig
 
 logger = logging.getLogger(__name__)
 
 class RuleMatcher:
-    """Match emails against utility filter rules"""
+    """
+    Advanced email filtering system with Power Automate/Zapier-style capabilities.
+    
+    Supports:
+    - Negation (NOT operator)
+    - Multiple conditions with AND/OR logic
+    - Nested condition groups
+    - 15+ field operators
+    - Backward compatibility with legacy filters
+    """
     
     @staticmethod
     async def find_matching_utilities(
@@ -32,8 +41,229 @@ class RuleMatcher:
     
     @staticmethod
     def _matches_utility(email: EmailMetadata, utility: UtilityConfig) -> bool:
-        """Check if email matches all utility filters"""
+        """Check if email matches utility filters (supports both old and new formats)"""
         filters = utility.pre_filters
+        
+        # Check if using new advanced filter format
+        if 'condition_groups' in filters:
+            return RuleMatcher._matches_advanced_filters(email, filters, utility)
+        
+        # Fallback to legacy filter format (backward compatibility)
+        return RuleMatcher._matches_legacy_filters(email, filters, utility)
+    
+    # ==================== ADVANCED FILTER SYSTEM ====================
+    
+    @staticmethod
+    def _matches_advanced_filters(email: EmailMetadata, filters: dict, utility: UtilityConfig) -> bool:
+        """Match using advanced condition groups"""
+        
+        # First check mailbox (always required)
+        if not RuleMatcher._check_mailbox(email, utility):
+            return False
+        
+        condition_groups = filters.get('condition_groups', [])
+        group_logic = filters.get('group_logic', 'AND')
+        
+        if not condition_groups:
+            return True  # No conditions = match all
+        
+        # Evaluate each condition group
+        group_results = []
+        for group in condition_groups:
+            result = RuleMatcher._evaluate_condition_group(email, group)
+            group_results.append(result)
+            logger.debug(f"Condition group '{group.get('name', 'unnamed')}': {result}")
+        
+        # Combine group results
+        if group_logic == 'AND':
+            final_result = all(group_results)
+        elif group_logic == 'OR':
+            final_result = any(group_results)
+        else:
+            logger.warning(f"Unknown group_logic: {group_logic}, defaulting to AND")
+            final_result = all(group_results)
+        
+        logger.debug(f"Final filter result: {final_result} (group_logic={group_logic})")
+        return final_result
+    
+    @staticmethod
+    def _evaluate_condition_group(email: EmailMetadata, group: dict) -> bool:
+        """Evaluate a single condition group"""
+        
+        conditions = group.get('conditions', [])
+        logic = group.get('logic', 'AND')
+        
+        if not conditions:
+            return True
+        
+        # Evaluate each condition
+        results = []
+        for condition in conditions:
+            result = RuleMatcher._evaluate_condition(email, condition)
+            results.append(result)
+            logger.debug(f"  Condition {condition.get('field')} {condition.get('operator')} {condition.get('value')}: {result}")
+        
+        # Combine results
+        if logic == 'AND':
+            return all(results)
+        elif logic == 'OR':
+            return any(results)
+        else:
+            logger.warning(f"Unknown logic: {logic}, defaulting to AND")
+            return all(results)
+    
+    @staticmethod
+    def _evaluate_condition(email: EmailMetadata, condition: dict) -> bool:
+        """Evaluate a single condition"""
+        
+        field = condition.get('field')
+        operator = condition.get('operator')
+        value = condition.get('value')
+        negate = condition.get('negate', False)
+        case_sensitive = condition.get('case_sensitive', False)
+        
+        # Get field value from email
+        field_value = RuleMatcher._get_field_value(email, field)
+        
+        # Apply operator
+        result = RuleMatcher._apply_operator(
+            field_value,
+            operator,
+            value,
+            case_sensitive
+        )
+        
+        # Apply negation
+        if negate:
+            result = not result
+        
+        return result
+    
+    @staticmethod
+    def _get_field_value(email: EmailMetadata, field: str) -> Any:
+        """Get field value from email"""
+        
+        field_map = {
+            'from_address': email.from_address,
+            'from_name': email.from_name,
+            'subject': email.subject,
+            'body_preview': email.body_preview,
+            'body_content': email.body_content,
+            'has_attachments': email.has_attachments,
+            'attachment_count': len(email.attachment_metadata),
+            'folder': email.folder,
+            'direction': email.direction,
+            'to_recipients': [r['address'] for r in email.to_recipients],
+            'cc_recipients': [r['address'] for r in email.cc_recipients],
+            'bcc_recipients': [r['address'] for r in email.bcc_recipients],
+            'attachment_names': [a['name'] for a in email.attachment_metadata],
+            'mailbox': email.mailbox,
+        }
+        
+        return field_map.get(field)
+    
+    @staticmethod
+    def _apply_operator(field_value: Any, operator: str, value: Any, case_sensitive: bool) -> bool:
+        """Apply operator to field value"""
+        
+        # Handle None/empty field values
+        if field_value is None:
+            field_value = ""
+        
+        # Handle case sensitivity for strings
+        if isinstance(field_value, str) and not case_sensitive:
+            field_value_compare = field_value.lower()
+            value_compare = value.lower() if isinstance(value, str) else value
+        else:
+            field_value_compare = field_value
+            value_compare = value
+        
+        try:
+            # String operators
+            if operator == 'equals':
+                return field_value_compare == value_compare
+            
+            elif operator == 'not_equals':
+                return field_value_compare != value_compare
+            
+            elif operator == 'contains':
+                if isinstance(field_value_compare, str):
+                    return value_compare in field_value_compare
+                elif isinstance(field_value_compare, list):
+                    # Check if any list item contains the value
+                    return any(value_compare in str(item).lower() if not case_sensitive else value_compare in str(item) 
+                              for item in field_value_compare)
+                return False
+            
+            elif operator == 'not_contains':
+                if isinstance(field_value_compare, str):
+                    return value_compare not in field_value_compare
+                elif isinstance(field_value_compare, list):
+                    return not any(value_compare in str(item).lower() if not case_sensitive else value_compare in str(item)
+                                  for item in field_value_compare)
+                return True
+            
+            elif operator == 'starts_with':
+                return isinstance(field_value_compare, str) and field_value_compare.startswith(value_compare)
+            
+            elif operator == 'ends_with':
+                return isinstance(field_value_compare, str) and field_value_compare.endswith(value_compare)
+            
+            elif operator == 'regex':
+                flags = 0 if case_sensitive else re.IGNORECASE
+                pattern = re.compile(value, flags)
+                return bool(pattern.search(str(field_value)))
+            
+            elif operator == 'in':
+                # Check if field value is in the provided list
+                if not case_sensitive and isinstance(field_value, str):
+                    value_list_lower = [v.lower() if isinstance(v, str) else v for v in value]
+                    return field_value_compare in value_list_lower
+                return field_value in value
+            
+            elif operator == 'not_in':
+                if not case_sensitive and isinstance(field_value, str):
+                    value_list_lower = [v.lower() if isinstance(v, str) else v for v in value]
+                    return field_value_compare not in value_list_lower
+                return field_value not in value
+            
+            # Numeric operators
+            elif operator == 'greater_than':
+                return float(field_value) > float(value)
+            
+            elif operator == 'less_than':
+                return float(field_value) < float(value)
+            
+            elif operator == 'greater_than_or_equal':
+                return float(field_value) >= float(value)
+            
+            elif operator == 'less_than_or_equal':
+                return float(field_value) <= float(value)
+            
+            elif operator == 'between':
+                # Value should be [min, max]
+                return float(value[0]) <= float(field_value) <= float(value[1])
+            
+            # Empty/null operators
+            elif operator == 'is_empty':
+                return not field_value or field_value == '' or field_value == []
+            
+            elif operator == 'is_not_empty':
+                return bool(field_value) and field_value != '' and field_value != []
+            
+            else:
+                logger.warning(f"Unknown operator: {operator}")
+                return False
+        
+        except Exception as e:
+            logger.error(f"Error applying operator {operator}: {e}")
+            return False
+    
+    # ==================== LEGACY FILTER SYSTEM (Backward Compatibility) ====================
+    
+    @staticmethod
+    def _matches_legacy_filters(email: EmailMetadata, filters: dict, utility: UtilityConfig) -> bool:
+        """Check if email matches legacy filter format"""
         match_logic = filters.get('match_logic', 'AND')
         
         checks = [
@@ -179,7 +409,7 @@ class RuleMatcher:
         if 'filename_contains' in attachment_filters and attachment_filters['filename_contains']:
             patterns = attachment_filters['filename_contains']
             if email.has_attachments:
-                filenames = [att['name'].lower() for att in email.attachments]
+                filenames = [att['name'].lower() for att in email.attachment_metadata]
                 if not any(any(p.lower() in fn for p in patterns) for fn in filenames):
                     return False
         

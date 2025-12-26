@@ -76,10 +76,38 @@ class Dispatcher:
             async def call_utility():
                 timeout = aiohttp.ClientTimeout(total=utility.timeout)
                 
+                # Build headers
+                headers = {'Content-Type': 'application/json'}
+                
+                # Add authentication if configured
+                auth_config = utility.endpoint.get('auth', {})
+                if auth_config:
+                    auth_type = auth_config.get('type', '').lower()
+                    if auth_type == 'bearer':
+                        token = auth_config.get('token', '')
+                        
+                        # Support environment variable substitution
+                        # Format: ${ENV_VAR_NAME} or {ENV_VAR_NAME}
+                        if token.startswith('$') or (token.startswith('{') and token.endswith('}')):
+                            import os
+                            import re
+                            # Extract env var name
+                            match = re.match(r'\$?\{?([A-Z_0-9]+)\}?', token)
+                            if match:
+                                env_var = match.group(1)
+                                token = os.getenv(env_var, '')
+                                if not token:
+                                    logger.warning(f"Environment variable {env_var} not found for utility {utility.name}")
+                        
+                        if token:
+                            headers['Authorization'] = f'Bearer {token}'
+                            logger.debug(f"Added bearer token auth for {utility.name}")
+                
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
                         utility.endpoint['url'],
                         json=email.to_dict(),
+                        headers=headers,
                         timeout=timeout
                     ) as response:
                         response.raise_for_status()
