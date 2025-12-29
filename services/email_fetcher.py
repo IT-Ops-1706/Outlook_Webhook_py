@@ -193,10 +193,19 @@ class EmailFetcher:
         if data.get('sentDateTime'):
             sent_dt = datetime.fromisoformat(data['sentDateTime'].replace('Z', '+00:00'))
         
-        # Parse body
+        # Parse body - prefer uniqueBody (new content only) over body (full thread)
+        unique_body_obj = data.get('uniqueBody', {})
         body_obj = data.get('body', {})
-        body_content = body_obj.get('content', '')
-        body_type = body_obj.get('contentType', 'text').lower()
+        
+        # Use uniqueBody if available, otherwise fall back to body
+        if unique_body_obj and unique_body_obj.get('content'):
+            body_content = unique_body_obj.get('content', '')
+            body_type = unique_body_obj.get('contentType', 'text').lower()
+            logger.debug("Using uniqueBody (new message only)")
+        else:
+            body_content = body_obj.get('content', '')
+            body_type = body_obj.get('contentType', 'text').lower()
+            logger.debug("Using body (full thread)")
         
         # Parse sender
         from_obj = data.get('from', {}).get('emailAddress', {})

@@ -58,7 +58,7 @@ class GraphService:
         
         params = {
             '$select': (
-                'id,subject,body,bodyPreview,from,toRecipients,ccRecipients,bccRecipients,'
+                'id,subject,body,uniqueBody,bodyPreview,from,toRecipients,ccRecipients,bccRecipients,'
                 'receivedDateTime,sentDateTime,hasAttachments,attachments,'
                 'internetMessageId,conversationId,conversationIndex,parentFolderId'
             )
