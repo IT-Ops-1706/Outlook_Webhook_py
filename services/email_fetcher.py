@@ -100,6 +100,57 @@ class EmailFetcher:
         
         return email
     
+    def _extract_text_from_html(self, html: str) -> str:
+        """Extract plain text from HTML, removing tags and whitespace"""
+        import re
+        if not html:
+            return ''
+        
+        # Remove HTML tags
+        text = re.sub(r'<[^>]+>', '', html)
+        # Remove extra whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        # Remove common separators (long underscores)
+        text = text.replace('_' * 10, '').strip()
+        return text
+    
+    def _extract_new_content_from_full_body(self, html: str) -> str:
+        """
+        Extract new message content from full body HTML.
+        Stops at common reply separators.
+        """
+        import re
+        
+        if not html:
+            return ''
+        
+        # Common reply separators (case-insensitive)
+        separators = [
+            r'_{20,}',  # Underscores (Outlook)
+            r'From:.*?Sent:.*?To:',  # Email headers
+            r'On .+ wrote:',  # Gmail style
+            r'<div class="gmail_quote">',  # Gmail quote div
+            r'<blockquote',  # Quoted text
+        ]
+        
+        # Find first separator
+        earliest_pos = len(html)
+        for sep in separators:
+            match = re.search(sep, html, re.IGNORECASE | re.DOTALL)
+            if match:
+                earliest_pos = min(earliest_pos, match.start())
+        
+        # Extract content before separator
+        new_content = html[:earliest_pos].strip()
+        
+        # If still has content, return it
+        text = self._extract_text_from_html(new_content)
+        if text and len(text) > 5:
+            return new_content
+        
+        # No meaningful content found, return full body
+        return html
+    
     def _extract_attachment_metadata(self, email_data: dict) -> list:
         """Extract attachment names and sizes from email data"""
         # Graph API includes basic attachment info in the email response
@@ -167,25 +218,49 @@ class EmailFetcher:
         if data.get('sentDateTime'):
             sent_dt = datetime.fromisoformat(data['sentDateTime'].replace('Z', '+00:00'))
         
-        # Parse body - simple passthrough from MS Graph API
+        # Parse body - intelligent fallback with content validation
         # Prefer uniqueBody (new content only) over body (full thread)
-        # No regex manipulation - let utility APIs handle post-processing
         
         unique_body_obj = data.get('uniqueBody', {})
         body_obj = data.get('body', {})
+        body_preview = data.get('bodyPreview', '')
         
-        # Use uniqueBody if it has any content
+        # Debug: Log raw bodies from Microsoft Graph
         unique_html = unique_body_obj.get('content', '').strip() if unique_body_obj else ''
+        full_html = body_obj.get('content', '')
         
-        if unique_html:
-            body_content = unique_body_obj.get('content', '')
+        logger.debug(f"📧 RAW BODIES FROM GRAPH API:")
+        logger.debug(f"   uniqueBody length: {len(unique_html)} chars")
+        logger.debug(f"   uniqueBody preview: {unique_html[:200]}...")
+        logger.debug(f"   full body length: {len(full_html)} chars")
+        logger.debug(f"   full body preview: {full_html[:200]}...")
+        logger.debug(f"   bodyPreview: {body_preview[:100]}...")
+        
+        # Extract text content from uniqueBody to validate it's not just HTML tags
+        unique_text = self._extract_text_from_html(unique_html) if unique_html else ''
+        
+        if unique_text and len(unique_text) > 5:
+            # uniqueBody has meaningful content
+            body_content = unique_html
             body_type = unique_body_obj.get('contentType', 'text').lower()
-            logger.debug("Using uniqueBody (new message only)")
+            logger.debug(f"✅ Using uniqueBody ({len(unique_text)} chars of actual text)")
+            logger.debug(f"   Extracted text: {unique_text[:100]}...")
+            
+        elif body_preview and len(body_preview) > 10:
+            # uniqueBody is empty/minimal, but bodyPreview has content
+            # Use bodyPreview as plain text (it contains the new message content)
+            body_content = body_preview
+            body_type = 'text'
+            logger.debug(f"⚠️ uniqueBody empty/minimal, using bodyPreview ({len(body_preview)} chars)")
+            logger.debug(f"   bodyPreview content: {body_preview[:200]}...")
+            
         else:
-            # Fallback to full body
-            body_content = body_obj.get('content', '')
+            # Last resort: extract from full body (before reply separators)
+            body_content = self._extract_new_content_from_full_body(full_html)
             body_type = body_obj.get('contentType', 'text').lower()
-            logger.debug("uniqueBody empty, using full body")
+            extracted_text = self._extract_text_from_html(body_content)
+            logger.debug(f"🔧 Extracted from full body ({len(extracted_text)} chars of text)")
+            logger.debug(f"   Extracted content: {body_content[:200]}...")
         
         # Parse sender
         from_obj = data.get('from', {}).get('emailAddress', {})

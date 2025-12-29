@@ -103,15 +103,16 @@ class Dispatcher:
                             headers['Authorization'] = f'Bearer {token}'
                             logger.debug(f"Added bearer token auth for {utility.name}")
                 
-                
                 # Prepare payload
                 payload = email.to_dict()
                 
-                # Log payload being sent
+                # Log payload being sent (full payload for debugging)
                 import json
+                payload_json = json.dumps(payload, indent=2, default=str)
                 logger.debug(f"📤 Sending to {utility.name}:")
                 logger.debug(f"   URL: {utility.endpoint['url']}")
-                logger.debug(f"   Payload: {json.dumps(payload, indent=2, default=str)[:500]}...")
+                logger.debug(f"   Full Payload ({len(payload_json)} chars):")
+                logger.debug(f"{payload_json}")
                 
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
