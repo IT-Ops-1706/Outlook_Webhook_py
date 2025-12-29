@@ -1,194 +1,76 @@
 {
   "utilities": [
     {
-      "id": "example_legacy",
-      "name": "Legacy Format Example (Backward Compatible)",
+      "id": "email_thread_tracker",
+      "name": "Email Thread Tracker - Rate Requests & Urgent Enquiries",
       "enabled": true,
       
       "subscriptions": {
         "mailboxes": [
-          {"address": "it.ops@babajishivram.com", "folders": ["Inbox"]}
+          {
+            "address": "it.ops@babajishivram.com",
+            "folders": ["Inbox", "Sent Items"]
+          }
         ]
       },
       
       "pre_filters": {
-        "match_logic": "AND",
-        "subject": {
-          "contains": ["Invoice"],
-          "regex": null
-        },
-        "sender": {
-          "exact": "vendor@example.com"
-        },
-        "attachments": {
-          "required": true
+        "condition_groups": [
+          {
+            "name": "Enquiry Keywords",
+            "logic": "OR",
+            "conditions": [
+              {"field": "subject", "operator": "contains", "value": "rate request", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "freight rate", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "quotation", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "quote shared", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "rate offered", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "rate validity", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "validity expires", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "indicative rate", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "firm rate", "case_sensitive": false},
+              {"field": "body_content", "operator": "contains", "value": "rate request", "case_sensitive": false},
+              {"field": "body_content", "operator": "contains", "value": "freight rate", "case_sensitive": false},
+              {"field": "body_content", "operator": "contains", "value": "quotation", "case_sensitive": false}
+            ]
+          },
+          {
+            "name": "Urgency Keywords",
+            "logic": "OR",
+            "conditions": [
+              {"field": "subject", "operator": "contains", "value": "urgent shipment", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "immediate action required", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "urgent response", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "time critical", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "production impact", "case_sensitive": false},
+              {"field": "subject", "operator": "contains", "value": "shutdown", "case_sensitive": false},
+              {"field": "body_content", "operator": "contains", "value": "urgent shipment", "case_sensitive": false},
+              {"field": "body_content", "operator": "contains", "value": "immediate action required", "case_sensitive": false}
+            ]
+          },
+          {
+            "name": "Quality Keywords",
+            "logic": "OR",
+            "conditions": [
+              {"field": "subject", "operator": "contains", "value": "dissatisfactory", "case_sensitive": false},
+              {"field": "body_content", "operator": "contains", "value": "dissatisfactory", "case_sensitive": false}
+            ]
+          }
+        ],
+        "group_logic": "OR"
+      },
+      
+      "endpoint": {
+        "url": "https://7217ab86dbc1.ngrok-free.app/process",
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "token": "${TOKEN_UTIL_EMAIL_THREAD_TRACKER}"
         }
       },
       
-      "endpoint": {
-        "url": "https://webhook.site/your-endpoint",
-        "method": "POST"
-      },
-      
-      "timeout": 30
-    },
-    
-    {
-      "id": "example_advanced_simple",
-      "name": "Advanced Format - Simple Example",
-      "enabled": true,
-      
-      "subscriptions": {
-        "mailboxes": [
-          {"address": "it.ops@babajishivram.com", "folders": ["Inbox"]}
-        ]
-      },
-      
-      "pre_filters": {
-        "condition_groups": [
-          {
-            "name": "Main Filters",
-            "logic": "AND",
-            "conditions": [
-              {
-                "field": "from_address",
-                "operator": "equals",
-                "value": "vendor@example.com",
-                "negate": false
-              },
-              {
-                "field": "subject",
-                "operator": "contains",
-                "value": "Invoice",
-                "negate": false
-              },
-              {
-                "field": "subject",
-                "operator": "contains",
-                "value": "Spam",
-                "negate": true
-              },
-              {
-                "field": "has_attachments",
-                "operator": "equals",
-                "value": true,
-                "negate": false
-              }
-            ]
-          }
-        ],
-        "group_logic": "AND"
-      },
-      
-      "endpoint": {
-        "url": "https://webhook.site/your-endpoint",
-        "method": "POST"
-      },
-      
-      "timeout": 30
-    },
-    
-    {
-      "id": "example_advanced_complex",
-      "name": "Advanced Format - Complex Example",
-      "enabled": true,
-      
-      "subscriptions": {
-        "mailboxes": [
-          {"address": "it.ops@babajishivram.com", "folders": ["Inbox"]}
-        ]
-      },
-      
-      "pre_filters": {
-        "condition_groups": [
-          {
-            "name": "Sender Group",
-            "logic": "OR",
-            "conditions": [
-              {"field": "from_address", "operator": "equals", "value": "vendor1@example.com"},
-              {"field": "from_address", "operator": "equals", "value": "vendor2@example.com"},
-              {"field": "from_address", "operator": "contains", "value": "@trusted-domain.com"}
-            ]
-          },
-          {
-            "name": "Subject Keywords",
-            "logic": "OR",
-            "conditions": [
-              {"field": "subject", "operator": "contains", "value": "Invoice"},
-              {"field": "subject", "operator": "contains", "value": "Payment"},
-              {"field": "subject", "operator": "regex", "value": "ID[_-]\\d+"}
-            ]
-          },
-          {
-            "name": "Exclusions",
-            "logic": "AND",
-            "conditions": [
-              {"field": "subject", "operator": "contains", "value": "Spam", "negate": true},
-              {"field": "subject", "operator": "contains", "value": "Test", "negate": true},
-              {"field": "body_content", "operator": "contains", "value": "unsubscribe", "negate": true}
-            ]
-          },
-          {
-            "name": "Attachment Requirements",
-            "logic": "AND",
-            "conditions": [
-              {"field": "has_attachments", "operator": "equals", "value": true},
-              {"field": "attachment_count", "operator": "greater_than", "value": 0},
-              {"field": "attachment_names", "operator": "ends_with", "value": ".pdf"}
-            ]
-          }
-        ],
-        "group_logic": "AND"
-      },
-      
-      "endpoint": {
-        "url": "https://webhook.site/your-endpoint",
-        "method": "POST"
-      },
-      
-      "timeout": 30
-    },
-    
-    {
-      "id": "example_advanced_negation",
-      "name": "Advanced Format - Negation Examples",
-      "enabled": true,
-      
-      "subscriptions": {
-        "mailboxes": [
-          {"address": "it.ops@babajishivram.com", "folders": ["Inbox"]}
-        ]
-      },
-      
-      "pre_filters": {
-        "condition_groups": [
-          {
-            "name": "Include Filters",
-            "logic": "AND",
-            "conditions": [
-              {"field": "subject", "operator": "contains", "value": "Important"},
-              {"field": "from_address", "operator": "in", "value": ["vendor@example.com", "finance@example.com"]}
-            ]
-          },
-          {
-            "name": "Exclude Filters (using negate)",
-            "logic": "AND",
-            "conditions": [
-              {"field": "subject", "operator": "contains", "value": "Spam", "negate": true},
-              {"field": "subject", "operator": "contains", "value": "Newsletter", "negate": true},
-              {"field": "from_address", "operator": "contains", "value": "noreply", "negate": true}
-            ]
-          }
-        ],
-        "group_logic": "AND"
-      },
-      
-      "endpoint": {
-        "url": "https://webhook.site/your-endpoint",
-        "method": "POST"
-      },
-      
-      "timeout": 30
+      "timeout": 30,
+      "enrich_employee_data": true
     }
   ]
 }
