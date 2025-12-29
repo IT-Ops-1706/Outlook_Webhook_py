@@ -167,113 +167,25 @@ class EmailFetcher:
         if data.get('sentDateTime'):
             sent_dt = datetime.fromisoformat(data['sentDateTime'].replace('Z', '+00:00'))
         
-        # Parse body - prefer uniqueBody (new content only) over body (full thread)
-        import re
-        from html import unescape
+        # Parse body - simple passthrough from MS Graph API
+        # Prefer uniqueBody (new content only) over body (full thread)
+        # No regex manipulation - let utility APIs handle post-processing
         
         unique_body_obj = data.get('uniqueBody', {})
         body_obj = data.get('body', {})
-        body_preview = data.get('bodyPreview', '')
         
-        # Use uniqueBody if available AND has actual TEXT content (not just whitespace/empty HTML)
+        # Use uniqueBody if it has any content
         unique_html = unique_body_obj.get('content', '').strip() if unique_body_obj else ''
         
-        # Extract actual text from uniqueBody HTML to verify it has real content
-        unique_text = ''
         if unique_html:
-            # Remove HTML tags and check for actual text
-            text_only = re.sub(r'<[^>]+>', ' ', unique_html)
-            text_only = re.sub(r'\s+', ' ', unescape(text_only)).strip()
-            # Filter out just separator/boilerplate patterns
-            if text_only and not re.match(r'^[\s_\-=]*$', text_only):
-                unique_text = text_only
-        
-        # Check if uniqueBody has meaningful TEXT content (not just empty HTML structure)
-        has_unique_content = bool(unique_text) and len(unique_text) > 5
-        
-        if has_unique_content:
             body_content = unique_body_obj.get('content', '')
             body_type = unique_body_obj.get('contentType', 'text').lower()
-            
-            # CRITICAL FIX: Check if bodyPreview has content that's missing from uniqueBody HTML
-            # This happens when Microsoft Graph's uniqueBody HTML is malformed (missing first line)
-            if body_preview and body_type == 'html':
-                # Extract first meaningful line from bodyPreview (before newline or separator)
-                # Skip if bodyPreview starts with separator pattern
-                if not re.match(r'^[\s_\-=]+', body_preview.strip()):
-                    first_line_match = re.match(r'^([^\r\n]+)', body_preview.strip())
-                    if first_line_match:
-                        first_line = first_line_match.group(1).strip()
-                        
-                        # Check if this first line is actually in the HTML body
-                        if first_line and first_line not in body_content and len(first_line) > 3:
-                            # First line is missing from HTML! Prepend it
-                            # Insert after <body> tag
-                            body_match = re.search(r'(<body[^>]*>)', body_content, re.IGNORECASE)
-                            if body_match:
-                                insert_pos = body_match.end()
-                                new_content_html = f'<div style="font-family:Aptos,Aptos_EmbeddedFont,Aptos_MSFontService,Calibri,Helvetica,sans-serif; font-size:12pt; color:rgb(0,0,0)">{first_line}</div>'
-                                body_content = body_content[:insert_pos] + new_content_html + body_content[insert_pos:]
-                                logger.info(f"✅ Fixed missing first line in uniqueBody: '{first_line[:50]}...'")
-            
             logger.debug("Using uniqueBody (new message only)")
         else:
-            # uniqueBody is empty/useless - try to extract new content from body
-            full_body = body_obj.get('content', '')
+            # Fallback to full body
+            body_content = body_obj.get('content', '')
             body_type = body_obj.get('contentType', 'text').lower()
-            
-            # Try to extract content before the reply separator
-            new_message_text = None
-            
-            if body_type == 'html' and full_body:
-                # Try to find content before <hr> or "From:" separator
-                # Pattern: Extract content between <body> and reply separator
-                match = re.search(r'<body[^>]*>(.*?)(?:<hr|<div[^>]*id=["\']divRplyFwdMsg)', full_body, re.DOTALL | re.IGNORECASE)
-                
-                if match:
-                    extracted = match.group(1).strip()
-                    # Remove HTML tags and check for actual text
-                    text_content = re.sub(r'<[^>]+>', ' ', extracted)
-                    text_content = re.sub(r'\s+', ' ', unescape(text_content)).strip()
-                    
-                    if text_content and len(text_content) > 3:
-                        new_message_text = text_content
-                        logger.debug(f"Extracted new message from body HTML: '{new_message_text[:50]}...'")
-            
-            # If we couldn't extract from HTML, try bodyPreview
-            if not new_message_text and body_preview:
-                # Check if bodyPreview starts with actual content (not separator)
-                preview_clean = body_preview.strip()
-                if not re.match(r'^[\s_\-=]+', preview_clean):
-                    # First line of bodyPreview might be the new message
-                    first_line_match = re.match(r'^([^\r\n]+)', preview_clean)
-                    if first_line_match:
-                        first_line = first_line_match.group(1).strip()
-                        # Verify it's not just "From:" header boilerplate
-                        if first_line and not first_line.startswith('From:') and len(first_line) > 3:
-                            new_message_text = first_line
-                            logger.info(f"📝 Recovered new message from bodyPreview: '{first_line[:50]}...'")
-            
-            # Build the body content
-            if new_message_text and body_type == 'html':
-                # Prepend the extracted new message to the full body
-                body_match = re.search(r'(<body[^>]*>)', full_body, re.IGNORECASE)
-                if body_match:
-                    insert_pos = body_match.end()
-                    new_content_html = f'<div style="font-family:Aptos,Aptos_EmbeddedFont,Aptos_MSFontService,Calibri,Helvetica,sans-serif; font-size:12pt; color:rgb(0,0,0)">{new_message_text}</div>'
-                    
-                    # Check if this text is already in the body (avoid duplication)
-                    if new_message_text not in full_body:
-                        body_content = full_body[:insert_pos] + new_content_html + full_body[insert_pos:]
-                        logger.info(f"✅ Prepended new message to body: '{new_message_text[:50]}...'")
-                    else:
-                        body_content = full_body
-                else:
-                    body_content = full_body
-            else:
-                body_content = full_body
-                
-            logger.debug("uniqueBody was empty/whitespace, using full body with extraction")
+            logger.debug("uniqueBody empty, using full body")
         
         # Parse sender
         from_obj = data.get('from', {}).get('emailAddress', {})
