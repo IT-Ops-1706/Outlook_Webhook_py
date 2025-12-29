@@ -182,12 +182,39 @@ class EmailFetcher:
             body_type = unique_body_obj.get('contentType', 'text').lower()
             logger.debug("Using uniqueBody (new message only)")
         else:
-            body_content = body_obj.get('content', '')
+            # uniqueBody is empty - try to extract new content from body
+            full_body = body_obj.get('content', '')
             body_type = body_obj.get('contentType', 'text').lower()
-            if unique_content:
-                logger.debug(f"uniqueBody was empty/whitespace, falling back to body (full thread)")
+            
+            # Try to extract content before the reply separator
+            if body_type == 'html' and full_body:
+                import re
+                from html import unescape
+                
+                # Try to find content before <hr> or "From:" separator
+                # Pattern: Extract content before horizontal rule or "From:" header
+                match = re.search(r'<body[^>]*>(.*?)(?:<hr|<div[^>]*id=["\']divRplyFwdMsg)', full_body, re.DOTALL | re.IGNORECASE)
+                
+                if match:
+                    extracted = match.group(1).strip()
+                    # Remove empty divs and get actual text
+                    text_match = re.search(r'<div[^>]*>([^<]+)</div>', extracted)
+                    if text_match:
+                        # Found new message content!
+                        body_content = full_body  # Keep full HTML but log what we found
+                        logger.debug(f"Extracted new message from body HTML: '{text_match.group(1)[:50]}...'")
+                    else:
+                        body_content = full_body
+                        logger.debug("uniqueBody was empty/whitespace, using full body")
+                else:
+                    body_content = full_body
+                    logger.debug("uniqueBody was empty/whitespace, using full body")
             else:
-                logger.debug("Using body (full thread)")
+                body_content = full_body
+                if unique_content:
+                    logger.debug("uniqueBody was empty/whitespace, falling back to body (full thread)")
+                else:
+                    logger.debug("Using body (full thread)")
         
         # Parse sender
         from_obj = data.get('from', {}).get('emailAddress', {})
