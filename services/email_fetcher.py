@@ -27,65 +27,39 @@ class EmailFetcher:
         if not mailbox_id or not message_id:
             raise ValueError(f"Invalid notification resource: {resource}")
         
-        logger.debug(f"Parsed: mailbox_id={mailbox_id}, message_id={message_id}, folder={folder}")
-        
         # Resolve mailbox UUID to email address using configured mailboxes
         from services.config_service import config_service
-        logger.debug("=" * 60)
-        logger.debug("FETCHING UTILITY CONFIGURATIONS")
-        logger.debug("=" * 60)
         
         utilities = await config_service.get_all_utilities()
-        logger.debug(f"Loaded {len(utilities)} utilities from config")
-        
-        # Log each utility's details
-        for idx, utility in enumerate(utilities, 1):
-            logger.debug(f"\nUtility #{idx}:")
-            logger.debug(f"  ID: {utility.id}")
-            logger.debug(f"  Name: {utility.name}")
-            logger.debug(f"  Enabled: {utility.enabled}")
-            logger.debug(f"  Endpoint: {utility.endpoint.get('url')}")
-            logger.debug(f"  Has Auth: {'auth' in utility.endpoint}")
-            logger.debug(f"  Mailboxes: {[m['address'] for m in utility.subscriptions.get('mailboxes', [])]}")
-            logger.debug(f"  Filter Type: {'advanced' if 'condition_groups' in utility.pre_filters else 'legacy'}")
         
         # Collect all unique mailbox addresses from all utilities
         all_mailboxes = {}
         for utility in utilities:
             for mb in utility.subscriptions.get('mailboxes', []):
-                # Store email address (we'll use this for matching)
                 all_mailboxes[mb['address'].lower()] = mb['address']
         
-        logger.debug(f"\nConfigured mailboxes summary: {list(all_mailboxes.values())}")
-        logger.debug(f"Total unique mailboxes: {len(all_mailboxes)}")
-        
         # For single mailbox setup, use it directly
-        # (This works because subscriptions are created for these mailboxes)
         if len(all_mailboxes) == 1:
             mailbox_email = list(all_mailboxes.values())[0]
-            logger.debug(f"\n✅ SINGLE MAILBOX MODE")
-            logger.debug(f"Mapping: {mailbox_id} → {mailbox_email}")
         else:
             # Multiple mailboxes - would need Graph API lookup or UUID mapping
-            # For now, use the first one and log warning
             mailbox_email = list(all_mailboxes.values())[0] if all_mailboxes else mailbox_id
-            logger.warning(f"\n⚠️  MULTIPLE MAILBOXES DETECTED")
-            logger.warning(f"Using first mailbox: {mailbox_email}")
-            logger.warning(f"This may need Graph API lookup for proper resolution")
-        
-        logger.info(f"\n🔄 MAILBOX RESOLUTION: {mailbox_id} → {mailbox_email}")
-        logger.debug("=" * 60)
+            logger.warning(f"Multiple mailboxes detected, using: {mailbox_email}")
 
         
         # Fetch from Graph API
         email_data = self.graph.fetch_email(mailbox_id, message_id)
         
+        # Log email details
+        subject = email_data.get('subject', '(no subject)')
+        body_preview = email_data.get('bodyPreview', '')[:100]
+        logger.info(f"📧 Fetched: '{subject}' | Preview: {body_preview}...")
+        
         # Get attachment metadata (names, sizes) but NOT content
         attachment_metadata = []
         if email_data.get('hasAttachments'):
-            # Extract metadata from Graph API response
             attachment_metadata = self._extract_attachment_metadata(email_data)
-            logger.info(f"Found {len(attachment_metadata)} attachments (metadata only)")
+            logger.info(f"📎 {len(attachment_metadata)} attachment(s): {[a['name'] for a in attachment_metadata]}")
         
         # Parse into EmailMetadata (without attachment content)
         return self._parse_email_data(
@@ -197,15 +171,23 @@ class EmailFetcher:
         unique_body_obj = data.get('uniqueBody', {})
         body_obj = data.get('body', {})
         
-        # Use uniqueBody if available, otherwise fall back to body
-        if unique_body_obj and unique_body_obj.get('content'):
+        # Use uniqueBody if available AND has actual content (not just whitespace/empty HTML)
+        unique_content = unique_body_obj.get('content', '').strip() if unique_body_obj else ''
+        
+        # Check if uniqueBody has meaningful content (not just empty HTML tags)
+        has_unique_content = unique_content and unique_content not in ['<html><body></body></html>', '<html></html>', '']
+        
+        if has_unique_content:
             body_content = unique_body_obj.get('content', '')
             body_type = unique_body_obj.get('contentType', 'text').lower()
             logger.debug("Using uniqueBody (new message only)")
         else:
             body_content = body_obj.get('content', '')
             body_type = body_obj.get('contentType', 'text').lower()
-            logger.debug("Using body (full thread)")
+            if unique_content:
+                logger.debug(f"uniqueBody was empty/whitespace, falling back to body (full thread)")
+            else:
+                logger.debug("Using body (full thread)")
         
         # Parse sender
         from_obj = data.get('from', {}).get('emailAddress', {})

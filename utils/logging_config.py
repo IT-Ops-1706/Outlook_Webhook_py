@@ -39,4 +39,8 @@ def setup_logging():
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
     
+    # Silence noisy loggers
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
+    
     return logger

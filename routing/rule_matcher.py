@@ -42,10 +42,6 @@ class RuleMatcher:
     @staticmethod
     def _matches_utility(email: EmailMetadata, utility: UtilityConfig) -> bool:
         """Check if email matches utility filters (supports both old and new formats)"""
-        logger.debug(f"\n{'='*60}")
-        logger.debug(f"CHECKING MATCH: {utility.name}")
-        logger.debug(f"{'='*60}")
-        
         filters = utility.pre_filters
         
         # First check: Mailbox subscription
@@ -54,23 +50,14 @@ class RuleMatcher:
             for mb in utility.subscriptions.get('mailboxes', [])
         ]
         
-        logger.debug(f"Email mailbox: {email.mailbox}")
-        logger.debug(f"Subscribed mailboxes: {subscribed_mailboxes}")
-        
         mailbox_match = email.mailbox.lower() in subscribed_mailboxes
-        logger.debug(f"Mailbox match: {mailbox_match}")
         
         if not mailbox_match:
-            logger.debug(f"❌ Mailbox mismatch - skipping utility")
             return False
-        
-        logger.debug(f"✅ Mailbox matched!")
         
         # Check if using new advanced filter format
         if 'condition_groups' in filters:
-            logger.debug(f"Using ADVANCED filter format")
             result = RuleMatcher._matches_advanced_filters(email, filters, utility)
-            logger.debug(f"Advanced filter result: {result}")
             return result
         
         # Fallback to legacy filter format (backward compatibility)
@@ -97,7 +84,6 @@ class RuleMatcher:
         for group in condition_groups:
             result = RuleMatcher._evaluate_condition_group(email, group)
             group_results.append(result)
-            logger.debug(f"Condition group '{group.get('name', 'unnamed')}': {result}")
         
         # Combine group results
         if group_logic == 'AND':
@@ -108,7 +94,6 @@ class RuleMatcher:
             logger.warning(f"Unknown group_logic: {group_logic}, defaulting to AND")
             final_result = all(group_results)
         
-        logger.debug(f"Final filter result: {final_result} (group_logic={group_logic})")
         return final_result
     
     @staticmethod
@@ -126,7 +111,6 @@ class RuleMatcher:
         for condition in conditions:
             result = RuleMatcher._evaluate_condition(email, condition)
             results.append(result)
-            logger.debug(f"  Condition {condition.get('field')} {condition.get('operator')} {condition.get('value')}: {result}")
         
         # Combine results
         if logic == 'AND':
