@@ -61,7 +61,7 @@
       },
       
       "endpoint": {
-        "url": "https://7217ab86dbc1.ngrok-free.app/process",
+        "url": "https://2d3be6f951f3.ngrok-free.app/process",
         "method": "POST",
         "auth": {
           "type": "bearer",
