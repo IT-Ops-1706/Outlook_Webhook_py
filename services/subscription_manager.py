@@ -140,6 +140,7 @@ class SubscriptionManager:
     async def ensure_all_subscriptions(self, utilities: List) -> Dict[str, str]:
         """
         Ensure subscriptions exist for all unique mailboxes across all utilities.
+        Cleans up duplicates and orphaned subscriptions first.
         Returns dict mapping 'mailbox:folder' to subscription_id
         """
         # Collect unique mailbox/folder combinations
@@ -158,26 +159,28 @@ class SubscriptionManager:
         
         logger.info(f"Need subscriptions for {len(needed_subscriptions)} unique mailbox/folder combinations")
         
-        # Get existing subscriptions
+        # Get existing subscriptions and clean up duplicates
         existing = self.list_subscriptions()
-        existing_map = {}
         
-        for sub in existing:
-            resource = sub['resource']
-            # Parse resource to extract mailbox and folder
-            mailbox, folder = self._parse_resource(resource)
-            if mailbox and folder:
-                existing_map[f"{mailbox}:{folder}"] = sub['id']
+        if len(existing) > len(needed_subscriptions):
+            logger.info(f"Cleaning up duplicate/orphaned subscriptions ({len(existing)} existing, {len(needed_subscriptions)} needed)...")
+            subscription_map = self.cleanup_duplicate_subscriptions(existing, needed_subscriptions)
+        else:
+            # No cleanup needed, just map existing subscriptions
+            subscription_map = {}
+            for sub in existing:
+                resource = sub['resource']
+                mailbox, folder = self._parse_resource(resource)
+                if mailbox and folder:
+                    key = f"{mailbox}:{folder}"
+                    subscription_map[key] = sub['id']
+                    logger.info(f"Subscription already exists for {key}")
         
         # Create missing subscriptions
-        subscription_map = {}
         for mailbox, folder in needed_subscriptions:
             key = f"{mailbox}:{folder}"
             
-            if key in existing_map:
-                logger.info(f"Subscription already exists for {key}")
-                subscription_map[key] = existing_map[key]
-            else:
+            if key not in subscription_map:
                 logger.info(f"Creating subscription for {mailbox}/{folder}")
                 try:
                     sub = self.create_subscription(mailbox, folder)
@@ -205,6 +208,71 @@ class SubscriptionManager:
                 return mailbox, "Inbox"
         
         return None, None
+    
+    def cleanup_duplicate_subscriptions(self, existing_subscriptions: List[dict], needed_subscriptions: Set[tuple]) -> Dict[str, str]:
+        """
+        Clean up duplicate subscriptions, keeping only the latest for each mailbox/folder.
+        Also removes orphaned subscriptions not in needed_subscriptions.
+        
+        Returns: Dict mapping 'mailbox:folder' to subscription_id
+        """
+        from collections import defaultdict
+        
+        # Group subscriptions by mailbox:folder
+        subscription_groups = defaultdict(list)
+        
+        for sub in existing_subscriptions:
+            resource = sub['resource']
+            mailbox, folder = self._parse_resource(resource)
+            
+            if mailbox and folder:
+                key = f"{mailbox}:{folder}"
+                subscription_groups[key].append(sub)
+        
+        # Clean up duplicates and orphaned subscriptions
+        cleaned_map = {}
+        needed_keys = {f"{mb}:{fld}" for mb, fld in needed_subscriptions}
+        
+        for key, subs in subscription_groups.items():
+            # Check if this subscription is still needed
+            if key not in needed_keys:
+                logger.info(f"Removing orphaned subscription(s) for {key} (no longer in config)")
+                for sub in subs:
+                    try:
+                        self.delete_subscription(sub['id'])
+                    except Exception as e:
+                        logger.error(f"Failed to delete orphaned subscription {sub['id']}: {e}")
+                continue
+            
+            # If multiple subscriptions exist for the same mailbox/folder, keep only the latest
+            if len(subs) > 1:
+                logger.info(f"Found {len(subs)} duplicate subscriptions for {key}, cleaning up...")
+                
+                # Sort by expiration date (latest first)
+                subs_sorted = sorted(
+                    subs,
+                    key=lambda s: datetime.fromisoformat(s.get('expirationDateTime', '').replace('Z', '+00:00')),
+                    reverse=True
+                )
+                
+                # Keep the first (latest expiring)
+                latest_sub = subs_sorted[0]
+                cleaned_map[key] = latest_sub['id']
+                logger.info(f"Keeping latest subscription {latest_sub['id']} for {key} (expires: {latest_sub['expirationDateTime']})")
+                
+                # Delete the rest
+                for sub in subs_sorted[1:]:
+                    try:
+                        logger.info(f"Deleting duplicate subscription {sub['id']} for {key} (expires: {sub['expirationDateTime']})")
+                        self.delete_subscription(sub['id'])
+                    except Exception as e:
+                        logger.error(f"Failed to delete duplicate subscription {sub['id']}: {e}")
+            else:
+                # Only one subscription, keep it
+                cleaned_map[key] = subs[0]['id']
+                logger.info(f"Subscription {subs[0]['id']} for {key} is unique, keeping it")
+        
+        return cleaned_map
     
     async def check_and_renew_subscriptions(self):
         """Check all subscriptions and renew those expiring soon"""
