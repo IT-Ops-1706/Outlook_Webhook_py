@@ -59,9 +59,11 @@ class GraphService:
         params = {
             '$select': (
                 'id,subject,body,uniqueBody,bodyPreview,from,toRecipients,ccRecipients,bccRecipients,'
-                'receivedDateTime,sentDateTime,hasAttachments,attachments,'
+                'receivedDateTime,sentDateTime,hasAttachments,'
                 'internetMessageId,conversationId,conversationIndex,parentFolderId'
-            )
+            ),
+            # Expand attachments to get metadata (name, size, type) but NOT content
+            '$expand': 'attachments($select=id,name,size,contentType,isInline)'
         }
         
         headers = {

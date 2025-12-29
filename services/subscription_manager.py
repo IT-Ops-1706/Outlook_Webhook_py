@@ -203,6 +203,10 @@ class SubscriptionManager:
                 folder_idx = parts.index('mailFolders') + 1
                 if folder_idx < len(parts):
                     folder = parts[folder_idx]
+                    # Normalize folder name to match config
+                    # Microsoft Graph uses 'SentItems' but config uses 'Sent Items'
+                    if folder == 'SentItems':
+                        folder = 'Sent Items'
                     return mailbox, folder
             else:
                 return mailbox, "Inbox"
