@@ -58,10 +58,14 @@ class InternetMessageDeduplicator:
         self._cache: Dict[str, float] = {}
         self._ttl = ttl_seconds
     
-    def is_unique(self, internet_message_id: str, body_content: str = None) -> bool:
+    def is_unique(self, internet_message_id: str, folder: str = "Inbox") -> bool:
         """
-        Check if this Internet Message ID has been seen before.
-        Crucial update: If ID is same but body is different, treat as unique (update).
+        Check if this Internet Message ID + Folder combination has been seen before.
+        
+        Key insight: Same email can legitimately appear in different folders
+        (e.g., Inbox vs Sent Items), and we need to process BOTH.
+        
+        Dedup key: (internet_message_id, folder)
         """
         if not internet_message_id:
             return True  # Allow emails without Internet Message ID
@@ -69,27 +73,16 @@ class InternetMessageDeduplicator:
         current_time = time.time()
         self._cleanup(current_time)
         
-        # Create a composite key if body is present
-        # Use simple length + first 50 chars as crude hash to avoid memory issues with full hash
-        if body_content:
-            body_hash = f"{len(body_content)}_{hash(body_content[:100])}"
-            cache_key = f"{internet_message_id}_{body_hash}"
-        else:
-            cache_key = internet_message_id
+        # Folder-aware composite key
+        cache_key = f"{internet_message_id}_{folder}"
             
         if cache_key in self._cache:
-            # Check if it was strictly the ID or the composite
-            logger.debug(f"Duplicate Internet Message ID detected: {cache_key}")
+            logger.debug(f"Duplicate detected: {internet_message_id} in {folder}")
             return False
         
         # Mark as seen
         self._cache[cache_key] = current_time
-        
-        # Also cache the strict ID slightly differently if needed, but for now just using composite
-        # If we get the same ID again with DIFFERENT body, the cache_key will differ -> allowed.
-        # If we get the same ID with SAME body -> blocked.
-        
-        logger.debug(f"New Internet Message ID (or distinct content): {internet_message_id}")
+        logger.debug(f"New message: {internet_message_id} in {folder}")
         return True
     
     def _cleanup(self, current_time: float):
