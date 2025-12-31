@@ -21,7 +21,8 @@ async def test_fetch_emails(
         url = f'https://graph.microsoft.com/v1.0/users/{mailbox}/messages'
         params = {
             '$top': limit,
-            '$select': 'id,subject,from,receivedDateTime,bodyPreview',
+            # Fetch ALL IDs and FULL body content
+            '$select': 'id,internetMessageId,conversationId,conversationIndex,subject,from,receivedDateTime,bodyPreview,body',
             '$orderby': 'receivedDateTime DESC'
         }
         
@@ -45,7 +46,14 @@ async def test_fetch_emails(
                     "subject": email.get('subject', 'No subject'),
                     "from": email.get('from', {}).get('emailAddress', {}).get('address', 'Unknown'),
                     "received": email.get('receivedDateTime', ''),
-                    "preview": email.get('bodyPreview', '')[:100]
+                    # IDs requested by user
+                    "internet_message_id": email.get('internetMessageId', ''),
+                    "conversation_id": email.get('conversationId', ''),
+                    "conversation_index": email.get('conversationIndex', ''),
+                    "message_id": email.get('id', ''),
+                    # Content
+                    "body_preview": email.get('bodyPreview', ''),
+                    "body_content": email.get('body', {}).get('content', '')  # Full HTML
                 }
                 for email in emails
             ]
