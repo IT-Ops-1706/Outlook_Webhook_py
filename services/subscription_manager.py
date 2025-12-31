@@ -17,19 +17,22 @@ class SubscriptionManager:
         """Create a new webhook subscription"""
         token = self.graph.get_access_token()
         
-        # Determine resource based on folder
-        if folder == "Inbox":
-            resource = f'users/{mailbox}/messages'
-        elif folder == "Sent Items":
+        # Determine resource and changeType based on folder
+        if folder == "Sent Items":
             resource = f'users/{mailbox}/mailFolders/SentItems/messages'
+            change_type = 'created'  # Only new sent emails
+        elif folder == "Inbox":
+            resource = f'users/{mailbox}/mailFolders/Inbox/messages'
+            change_type = 'created,updated'  # New emails + thread updates
         else:
             resource = f'users/{mailbox}/mailFolders/{folder}/messages'
+            change_type = 'created'
         
         # Subscription expires in 3 days (max for messages)
         expiration = datetime.utcnow() + timedelta(days=2, hours=23)
         
         subscription_data = {
-            'changeType': 'created',
+            'changeType': change_type,
             'notificationUrl': config.WEBHOOK_URL,
             'resource': resource,
             'expirationDateTime': expiration.isoformat() + 'Z',
