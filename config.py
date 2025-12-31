@@ -27,5 +27,5 @@ BATCH_SIZE = int(os.getenv('BATCH_SIZE', 10))
 DEDUPLICATION_TTL = int(os.getenv('DEDUPLICATION_TTL', 300))
 
 # Logging
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'PRODUCTION')  # Options: DEBUG, INFO, PRODUCTION, WARNING, ERROR
 LOG_FILE = os.getenv('LOG_FILE', 'logs/app.log')
