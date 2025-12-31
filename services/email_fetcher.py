@@ -246,20 +246,13 @@ class EmailFetcher:
             logger.debug(f"✅ Using uniqueBody ({len(unique_text)} chars of actual text)")
             logger.debug(f"   Extracted text: {unique_text[:100]}...")
             
-        elif body_preview and len(body_preview) > 10:
-            # uniqueBody is empty/minimal, but bodyPreview has content
-            # Use bodyPreview as plain text (it contains the new message content)
-            body_content = body_preview
-            body_type = 'text'
-            logger.debug(f"⚠️ uniqueBody empty/minimal, using bodyPreview ({len(body_preview)} chars)")
-            logger.debug(f"   bodyPreview content: {body_preview[:200]}...")
-            
         else:
-            # Last resort: extract from full body (before reply separators)
+            # uniqueBody is empty/minimal - extract from full body
+            # DO NOT use bodyPreview - it's truncated to ~255 chars!
             body_content = self._extract_new_content_from_full_body(full_html)
             body_type = body_obj.get('contentType', 'text').lower()
             extracted_text = self._extract_text_from_html(body_content)
-            logger.debug(f"🔧 Extracted from full body ({len(extracted_text)} chars of text)")
+            logger.debug(f"🔧 uniqueBody empty, extracted from full body ({len(extracted_text)} chars of text)")
             logger.debug(f"   Extracted content: {body_content[:200]}...")
         
         # Parse sender

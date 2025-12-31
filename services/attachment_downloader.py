@@ -49,15 +49,13 @@ class AttachmentDownloader:
                         
                         # Get content for file attachments
                         if att.get('@odata.type') == '#microsoft.graph.fileAttachment':
-                            # Content is base64 encoded
-                            attachment['content_bytes'] = att.get('contentBytes')
+                            # Content is base64 encoded from Graph API
+                            content_bytes_b64 = att.get('contentBytes')
                             
-                            # Decode for processing
-                            if attachment['content_bytes']:
+                            # Decode to actual bytes (don't store both!)
+                            if content_bytes_b64:
                                 try:
-                                    attachment['content'] = base64.b64decode(
-                                        attachment['content_bytes']
-                                    )
+                                    attachment['content'] = base64.b64decode(content_bytes_b64)
                                 except Exception as e:
                                     logger.error(f"Failed to decode attachment {attachment['name']}: {e}")
                                     attachment['content'] = None
