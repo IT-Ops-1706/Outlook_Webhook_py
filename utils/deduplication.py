@@ -51,5 +51,42 @@ class EmailDeduplicator:
         if expired:
             logger.debug(f"Cleaned up {len(expired)} expired cache entries")
 
-# Global instance
+class InternetMessageDeduplicator:
+    """Deduplicate emails based on Internet Message ID (globally unique)"""
+    
+    def __init__(self, ttl_seconds=300):
+        self._cache: Dict[str, float] = {}
+        self._ttl = ttl_seconds
+    
+    def is_unique(self, internet_message_id: str) -> bool:
+        """Check if this Internet Message ID has been seen before"""
+        if not internet_message_id:
+            return True  # Allow emails without Internet Message ID
+        
+        current_time = time.time()
+        self._cleanup(current_time)
+        
+        if internet_message_id in self._cache:
+            logger.debug(f"Duplicate Internet Message ID: {internet_message_id}")
+            return False
+        
+        # Mark as seen
+        self._cache[internet_message_id] = current_time
+        logger.debug(f"New Internet Message ID: {internet_message_id}")
+        return True
+    
+    def _cleanup(self, current_time: float):
+        """Remove expired cache entries"""
+        expired = [
+            k for k, v in self._cache.items()
+            if current_time - v > self._ttl
+        ]
+        for k in expired:
+            del self._cache[k]
+        
+        if expired:
+            logger.debug(f"Cleaned up {len(expired)} expired Internet Message ID cache entries")
+
+# Global instances
 deduplicator = EmailDeduplicator()
+internet_message_deduplicator = InternetMessageDeduplicator()

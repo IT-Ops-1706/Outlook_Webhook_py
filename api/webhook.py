@@ -9,7 +9,7 @@ from services.config_service import config_service
 from services.email_fetcher import email_fetcher
 from routing.rule_matcher import RuleMatcher
 from routing.dispatcher import Dispatcher
-from utils.deduplication import deduplicator
+from utils.deduplication import deduplicator, internet_message_deduplicator
 from utils.webhook_validator import webhook_validator
 from utils.processing_logger import processing_logger
 import config
@@ -87,6 +87,12 @@ async def process_single_email(notification: dict, utilities: list):
     try:
         # Step 1: Fetch metadata only (fast, small memory footprint)
         email = await email_fetcher.fetch_email_metadata(notification)
+        
+        # Step 1.5: Check for duplicate using Internet Message ID
+        # (Microsoft may send multiple notifications for same email with different Outlook IDs)
+        if not internet_message_deduplicator.is_unique(email.internet_message_id):
+            logger.info(f"⚠️  Duplicate email detected (Internet Message ID already processed): {email.subject[:50]}")
+            return  # Skip this duplicate
         
         # Log email fetched
         processing_logger.log_email_fetched(email.to_dict())
