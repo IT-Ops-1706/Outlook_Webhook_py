@@ -23,7 +23,7 @@ class SubscriptionManager:
             change_type = 'created'  # Only new sent emails
         elif folder == "Inbox":
             resource = f'users/{mailbox}/mailFolders/Inbox/messages'
-            change_type = 'created,updated'  # New emails + thread updates
+            change_type = 'created'  # Only new emails (no updates)
         else:
             resource = f'users/{mailbox}/mailFolders/{folder}/messages'
             change_type = 'created'

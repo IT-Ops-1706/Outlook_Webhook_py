@@ -62,6 +62,12 @@ async def process_single_email(notification: dict, utilities: list):
             logger.warning("Failed to fetch email data")
             return
         
+        # Step 1.5: Check for duplicates (safety net for Exchange)
+        from utils.deduplication import simple_deduplicator
+        if simple_deduplicator.is_duplicate(email.internet_message_id, email.folder):
+            logger.info(f"⏭️  Skipping duplicate: {email.subject[:50]}")
+            return
+        
         logger.info(f"📧 Email: '{email.subject}' | From: {email.from_address} | Folder: {email.folder}")
         
         # Step 2: Match against utility rules
