@@ -222,9 +222,10 @@ async def cleanup_subscriptions(auth: str = Depends(verify_bearer_token)):
         
         logger.info(f"Deleted {deleted_count} subscriptions")
         
-        # Wait a moment for Microsoft to process
+        # Wait for Microsoft to process deletions
         import asyncio
-        await asyncio.sleep(2)
+        logger.info("Waiting 5 seconds before recreating subscriptions...")
+        await asyncio.sleep(5)
         
         # Recreate fresh subscriptions
         from services.config_service import config_service
