@@ -126,7 +126,9 @@ class EmailFetcher:
         
         # Common reply separators (case-insensitive)
         separators = [
-            r'_{20,}',  # Underscores (Outlook)
+            r'<hr[^>]*>',  # Horizontal rule (Outlook reply separator)
+            r'<div\s+id=["\']divRplyFwdMsg["\']',  # Outlook reply div
+            r'_{20,}',  # Underscores (Outlook text)
             r'From:.*?Sent:.*?To:',  # Email headers
             r'On .+ wrote:',  # Gmail style
             r'<div class="gmail_quote">',  # Gmail quote div
@@ -247,13 +249,11 @@ class EmailFetcher:
             logger.debug(f"   Extracted text: {unique_text[:100]}...")
             
         else:
-            # uniqueBody is empty/minimal - extract from full body
-            # DO NOT use bodyPreview - it's truncated to ~255 chars!
-            body_content = self._extract_new_content_from_full_body(full_html)
+            # uniqueBody is empty - send full body, let utility handle extraction
+            body_content = full_html
             body_type = body_obj.get('contentType', 'text').lower()
-            extracted_text = self._extract_text_from_html(body_content)
-            logger.debug(f"🔧 uniqueBody empty, extracted from full body ({len(extracted_text)} chars of text)")
-            logger.debug(f"   Extracted content: {body_content[:200]}...")
+            logger.debug(f"⚠️ uniqueBody empty, using full body ({len(full_html)} chars)")
+            logger.debug(f"   Full body preview: {full_html[:200]}...")
         
         # Parse sender
         from_obj = data.get('from', {}).get('emailAddress', {})
