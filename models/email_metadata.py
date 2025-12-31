@@ -63,6 +63,13 @@ class EmailMetadata:
         data = asdict(self)
         data['direction'] = self.direction
         
+        # Explicitly ensure IDs are present (user request)
+        data['internet_message_id'] = self.internet_message_id
+        data['conversation_id'] = self.conversation_id
+        data['conversation_index'] = self.conversation_index
+        data['mailbox'] = self.mailbox
+        data['folder'] = self.folder
+        
         # Convert datetime to ISO format
         if self.received_datetime:
             data['received_datetime'] = self.received_datetime.isoformat()

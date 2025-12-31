@@ -88,10 +88,10 @@ async def process_single_email(notification: dict, utilities: list):
         # Step 1: Fetch metadata only (fast, small memory footprint)
         email = await email_fetcher.fetch_email_metadata(notification)
         
-        # Step 1.5: Check for duplicate using Internet Message ID
-        # (Microsoft may send multiple notifications for same email with different Outlook IDs)
-        if not internet_message_deduplicator.is_unique(email.internet_message_id):
-            logger.info(f"⚠️  Duplicate email detected (Internet Message ID already processed): {email.subject[:50]}")
+        # Step 1.5: Check for duplicate using Internet Message ID AND Body Content
+        # (Microsoft may send multiple notifications, but if body changed, process it!)
+        if not internet_message_deduplicator.is_unique(email.internet_message_id, email.body_content):
+            logger.info(f"⚠️  Duplicate email detected (Same ID & Content): {email.subject[:50]}")
             return  # Skip this duplicate
         
         # Log email fetched
