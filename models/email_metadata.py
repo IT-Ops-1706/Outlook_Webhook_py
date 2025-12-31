@@ -16,6 +16,7 @@ class EmailMetadata:
     subject: str
     body_preview: str
     body_content: str
+    unique_body_content: str = ""  # New content only (excludes quoted text)
     body_type: str  # 'html' or 'text'
     
     # Participants

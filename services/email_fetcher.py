@@ -122,6 +122,10 @@ class EmailFetcher:
         body_content = body_obj.get('content', '')
         body_type = body_obj.get('contentType', 'html').lower()
         
+        # Unique Body - new content only (from Microsoft Graph)
+        unique_body_obj = data.get('uniqueBody', {})
+        unique_body_content = unique_body_obj.get('content', '')
+        
         # Sender
         from_obj = data.get('from', {}).get('emailAddress', {})
         
@@ -159,6 +163,7 @@ class EmailFetcher:
             subject=data.get('subject', ''),
             body_preview=data.get('bodyPreview', ''),
             body_content=body_content,
+            unique_body_content=unique_body_content,
             body_type=body_type,
             from_address=from_obj.get('address', ''),
             from_name=from_obj.get('name', ''),
