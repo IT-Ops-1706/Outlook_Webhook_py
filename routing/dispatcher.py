@@ -106,13 +106,12 @@ class Dispatcher:
                 # Prepare payload
                 payload = email.to_dict()
                 
-                # Log payload being sent (full payload for debugging)
-                import json
-                payload_json = json.dumps(payload, indent=2, default=str)
-                logger.debug(f"📤 Sending to {utility.name}:")
-                logger.debug(f"   URL: {utility.endpoint['url']}")
-                logger.debug(f"   Full Payload ({len(payload_json)} chars):")
-                logger.debug(f"{payload_json}")
+                # Log payload summary (NO FULL BODY DUMP)
+                logger.info(f"📤 Sending to Utility: {utility.name}")
+                logger.debug(f"   Target URL:          {utility.endpoint['url']}")
+                logger.debug(f"   Email Subject:       {email.subject}")
+                logger.debug(f"   Internet Message ID: {email.internet_message_id}")
+                logger.debug(f"   Payload Size:        {len(str(payload))} bytes")
                 
                 async with aiohttp.ClientSession() as session:
                     async with session.post(

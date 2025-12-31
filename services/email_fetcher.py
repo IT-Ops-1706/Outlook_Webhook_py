@@ -220,40 +220,18 @@ class EmailFetcher:
         if data.get('sentDateTime'):
             sent_dt = datetime.fromisoformat(data['sentDateTime'].replace('Z', '+00:00'))
         
-        # Parse body - intelligent fallback with content validation
-        # Prefer uniqueBody (new content only) over body (full thread)
-        
-        unique_body_obj = data.get('uniqueBody', {})
+        # Parse body - Always use full body as requested
+        # The utility will handle HTML structure and extraction if needed
         body_obj = data.get('body', {})
-        body_preview = data.get('bodyPreview', '')
+        body_content = body_obj.get('content', '')
+        body_type = body_obj.get('contentType', 'text').lower()
         
-        # Debug: Log raw bodies from Microsoft Graph
-        unique_html = unique_body_obj.get('content', '').strip() if unique_body_obj else ''
-        full_html = body_obj.get('content', '')
+        logger.debug(f"📧 Body: Using full body content by default ({len(body_content)} chars)")
+        logger.debug(f"   Body Type: {body_type}")
         
-        logger.debug(f"📧 RAW BODIES FROM GRAPH API:")
-        logger.debug(f"   uniqueBody length: {len(unique_html)} chars")
-        logger.debug(f"   uniqueBody preview: {unique_html[:200]}...")
-        logger.debug(f"   full body length: {len(full_html)} chars")
-        logger.debug(f"   full body preview: {full_html[:200]}...")
-        logger.debug(f"   bodyPreview: {body_preview[:100]}...")
-        
-        # Extract text content from uniqueBody to validate it's not just HTML tags
-        unique_text = self._extract_text_from_html(unique_html) if unique_html else ''
-        
-        if unique_text and len(unique_text) > 5:
-            # uniqueBody has meaningful content
-            body_content = unique_html
-            body_type = unique_body_obj.get('contentType', 'text').lower()
-            logger.debug(f"✅ Using uniqueBody ({len(unique_text)} chars of actual text)")
-            logger.debug(f"   Extracted text: {unique_text[:100]}...")
-            
-        else:
-            # uniqueBody is empty - send full body, let utility handle extraction
-            body_content = full_html
-            body_type = body_obj.get('contentType', 'text').lower()
-            logger.debug(f"⚠️ uniqueBody empty, using full body ({len(full_html)} chars)")
-            logger.debug(f"   Full body preview: {full_html[:200]}...")
+        # Log preview for debugging
+        if body_content:
+            logger.debug(f"   Preview: {body_content[:200]}...")
         
         # Parse sender
         from_obj = data.get('from', {}).get('emailAddress', {})
@@ -277,14 +255,28 @@ class EmailFetcher:
         ]
         
         # Folder is now passed as parameter
-        logger.debug(f"Creating EmailMetadata: mailbox={mailbox}, folder={folder}, subject={data.get('subject', '')[:50]}")
         
+        # --- DETAILED LOGGING (Requested by User) ---
+        internet_message_id = data.get('internetMessageId', '')
+        conversation_id = data.get('conversationId', '')
+        subject = data.get('subject', '')
+        
+        logger.info(f"📄 EMAIL DETAILS FETCHED:")
+        logger.info(f"   Internet Message ID: {internet_message_id}")
+        logger.info(f"   Conversation ID:     {conversation_id}")
+        logger.info(f"   Mailbox:             {mailbox}")
+        logger.info(f"   Folder:              {folder}")
+        logger.info(f"   Subject:             {subject}")
+        logger.info(f"   Body Length:         {len(body_content)} chars")
+        logger.info(f"   FULL BODY CONTENT:\n{body_content}")
+        # ---------------------------------------------
+
         return EmailMetadata(
             message_id=data.get('id', ''),
-            internet_message_id=data.get('internetMessageId', ''),
-            conversation_id=data.get('conversationId', ''),
+            internet_message_id=internet_message_id,
+            conversation_id=conversation_id,
             conversation_index=data.get('conversationIndex', ''),
-            subject=data.get('subject', ''),
+            subject=subject,
             body_preview=data.get('bodyPreview', ''),
             body_content=body_content,
             body_type=body_type,

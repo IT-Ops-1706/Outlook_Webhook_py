@@ -99,16 +99,9 @@ async def process_single_email(notification: dict, utilities: list):
         
         logger.info(f"Processing email: '{email.subject[:50]}' from {email.from_address}")
         
-        # Debug: Log complete email details
-        logger.debug(f"📬 WEBHOOK NOTIFICATION - EMAIL DETAILS:")
-        logger.debug(f"   Subject: {email.subject}")
-        logger.debug(f"   From: {email.from_address} ({email.from_name})")
-        logger.debug(f"   To: {[r['address'] for r in email.to_recipients]}")
-        logger.debug(f"   Body Type: {email.body_type}")
-        logger.debug(f"   Body Length: {len(email.body_content)} chars")
-        logger.debug(f"   Body Content (first 500 chars):")
-        logger.debug(f"   {email.body_content[:500]}...")
-        logger.debug(f"   Body Preview: {email.body_preview[:200]}...")
+        # Debug: Log basic processing info
+        logger.debug(f"📬 WEBHOOK NOTIFICATION - Processing '{email.subject[:50]}'")
+        logger.debug(f"   Internal ID: {email.message_id}")
         
         # Step 2: Match to utilities (uses metadata only, no attachments needed)
         matched = await RuleMatcher.find_matching_utilities(email, utilities)
