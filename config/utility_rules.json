@@ -12,6 +12,13 @@
               "Inbox",
               "Sent Items"
             ]
+          },
+          {
+            "address": "developer5@babajishivram.com",
+            "folders": [
+              "Inbox",
+              "Sent Items"
+            ]
           }
         ]
       },
