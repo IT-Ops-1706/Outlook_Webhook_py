@@ -52,12 +52,19 @@ class RuleMatcher:
         
         mailbox_match = email.mailbox.lower() in subscribed_mailboxes
         
+        # Debug logging for mailbox matching
         if not mailbox_match:
+            logger.debug(
+                f"❌ Mailbox mismatch for '{email.subject}': "
+                f"email.mailbox='{email.mailbox}' not in {subscribed_mailboxes}"
+            )
             return False
         
         # Check if using new advanced filter format
         if 'condition_groups' in filters:
             result = RuleMatcher._matches_advanced_filters(email, filters, utility)
+            if not result:
+                logger.debug(f"❌ Filter mismatch for '{email.subject}': Advanced filters did not match")
             return result
         
         # Fallback to legacy filter format (backward compatibility)

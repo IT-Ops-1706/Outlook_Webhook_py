@@ -84,14 +84,18 @@ class EmailFetcher:
         # If mailbox_id is already an email address, check if it matches config
         mailbox_lower = mailbox_id.lower()
         if mailbox_lower in all_mailboxes:
-            return all_mailboxes[mailbox_lower]
+            resolved = all_mailboxes[mailbox_lower]
+            logger.debug(f"✅ Resolved mailbox: '{mailbox_id}' → '{resolved}'")
+            return resolved
         
         # If mailbox_id looks like an email (contains @), return it directly
         if '@' in mailbox_id:
+            logger.debug(f"⚠️  Mailbox '{mailbox_id}' not in config, returning as-is")
             return mailbox_id
         
         # For GUID-based mailbox_id, return as-is (Graph API accepts both)
         # The notification resource contains the correct identifier
+        logger.debug(f"⚠️  GUID-based mailbox_id: '{mailbox_id}'")
         return mailbox_id
     
     def _get_folder_name(self, folder_id: str, mailbox: str) -> str:
