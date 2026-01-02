@@ -64,7 +64,15 @@ class EmailFetcher:
         return email
     
     async def _resolve_mailbox(self, mailbox_id: str) -> str:
-        """Resolve mailbox UUID to email address"""
+        """
+        Resolve mailbox identifier to email address.
+        
+        The mailbox_id from notification can be either:
+        - Email address: "it.ops@babajishivram.com"
+        - User GUID: "abc123-def456-ghi789"
+        
+        Returns the matching configured mailbox email address.
+        """
         from services.config_service import config_service
         
         utilities = await config_service.get_all_utilities()
@@ -73,11 +81,18 @@ class EmailFetcher:
             for mb in utility.subscriptions.get('mailboxes', []):
                 all_mailboxes[mb['address'].lower()] = mb['address']
         
-        # For single mailbox, use it directly
-        if len(all_mailboxes) == 1:
-            return list(all_mailboxes.values())[0]
+        # If mailbox_id is already an email address, check if it matches config
+        mailbox_lower = mailbox_id.lower()
+        if mailbox_lower in all_mailboxes:
+            return all_mailboxes[mailbox_lower]
         
-        return list(all_mailboxes.values())[0] if all_mailboxes else mailbox_id
+        # If mailbox_id looks like an email (contains @), return it directly
+        if '@' in mailbox_id:
+            return mailbox_id
+        
+        # For GUID-based mailbox_id, return as-is (Graph API accepts both)
+        # The notification resource contains the correct identifier
+        return mailbox_id
     
     def _get_folder_name(self, folder_id: str, mailbox: str) -> str:
         """Get folder display name from ID"""
