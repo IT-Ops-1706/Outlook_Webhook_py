@@ -93,9 +93,19 @@ class EmailFetcher:
             logger.info(f"⚠️  Mailbox '{mailbox_id}' not in config, returning as-is")
             return mailbox_id
         
-        # For GUID-based mailbox_id, return as-is (Graph API accepts both)
-        # The notification resource contains the correct identifier
-        logger.info(f"⚠️  GUID-based mailbox_id: '{mailbox_id}'")
+        # For GUID-based mailbox_id, resolve to email using Graph API
+        logger.info(f"🔍 Resolving GUID-based mailbox_id: '{mailbox_id}'")
+        resolved_email = self.graph.get_user_email_by_id(mailbox_id)
+        
+        if resolved_email:
+            # Check if resolved email matches config
+            resolved_lower = resolved_email.lower()
+            if resolved_lower in all_mailboxes:
+                return all_mailboxes[resolved_lower]
+            return resolved_email
+        
+        # Fallback: return original mailbox_id (Graph API called it, so it should work)
+        logger.warning(f"⚠️  Could not resolve GUID '{mailbox_id}', using as-is")
         return mailbox_id
     
     def _get_folder_name(self, folder_id: str, mailbox: str) -> str:

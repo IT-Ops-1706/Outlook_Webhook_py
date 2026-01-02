@@ -138,6 +138,53 @@ class GraphService:
         except Exception as e:
             logger.error(f"Failed to fetch user details for {email_address}: {e}")
             return None
+    
+    def get_user_email_by_id(self, user_id: str) -> Optional[str]:
+        """
+        Resolve a user GUID to their email address.
+        
+        Args:
+            user_id: User GUID (e.g., 'c7dc1d4b-2578-4006-9595-47700b7a4c96')
+        
+        Returns:
+            User's email address or None if not found
+        """
+        # If it already looks like an email, return it
+        if '@' in user_id:
+            return user_id
+        
+        token = self.get_access_token()
+        
+        url = f'https://graph.microsoft.com/v1.0/users/{user_id}'
+        
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'
+        }
+        
+        params = {
+            '$select': 'mail,userPrincipalName'
+        }
+        
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            
+            user_data = response.json()
+            
+            # Prefer 'mail' property, fallback to 'userPrincipalName'
+            email = user_data.get('mail') or user_data.get('userPrincipalName')
+            
+            if email:
+                logger.info(f"✅ Resolved GUID '{user_id}' → '{email}'")
+                return email
+            else:
+                logger.warning(f"User {user_id} found but has no email address")
+                return None
+        
+        except Exception as e:
+            logger.error(f"Failed to resolve user GUID {user_id}: {e}")
+            return None
 
 # Global instance
 graph_service = GraphService()
