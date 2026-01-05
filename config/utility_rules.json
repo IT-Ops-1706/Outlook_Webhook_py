@@ -173,6 +173,24 @@
                 "case_sensitive": false
               }
             ]
+          },
+          {
+            "name": "FE Number Pattern",
+            "logic": "OR",
+            "conditions": [
+              {
+                "field": "subject",
+                "operator": "regex",
+                "value": "FE\\d{5}",
+                "case_sensitive": false
+              },
+              {
+                "field": "body_content",
+                "operator": "regex",
+                "value": "FE\\d{5}",
+                "case_sensitive": false
+              }
+            ]
           }
         ],
         "group_logic": "OR"
