@@ -306,6 +306,17 @@ class SubscriptionManager:
                     try:
                         self.renew_subscription(sub['id'])
                         renewed_count += 1
+                    except requests.exceptions.HTTPError as e:
+                        # If renewal fails with 400 (expired/invalid), delete and recreate
+                        if e.response.status_code == 400:
+                            logger.warning(f"Subscription {sub['id']} cannot be renewed (400 error), will recreate")
+                            try:
+                                self.delete_subscription(sub['id'])
+                                logger.info(f"Deleted invalid subscription {sub['id']}")
+                            except Exception as del_error:
+                                logger.error(f"Failed to delete invalid subscription: {del_error}")
+                        else:
+                            logger.error(f"Failed to renew subscription {sub['id']}: {e}")
                     except Exception as e:
                         logger.error(f"Failed to renew subscription {sub['id']}: {e}")
             
@@ -313,6 +324,12 @@ class SubscriptionManager:
                 logger.info(f"Successfully renewed {renewed_count} subscriptions")
             else:
                 logger.info("No subscriptions needed renewal")
+            
+            # After renewal, ensure all needed subscriptions exist
+            # This will recreate any that were deleted due to renewal failures
+            logger.info("Checking if any subscriptions need to be recreated...")
+            utilities = await config_service.get_all_utilities()
+            await self.ensure_all_subscriptions(utilities)
         
         except Exception as e:
             logger.error(f"Error in subscription renewal check: {e}")

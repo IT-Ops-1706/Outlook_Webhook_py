@@ -178,7 +178,7 @@
         "group_logic": "OR"
       },
       "endpoint": {
-        "url": "https://8dd661b82ec6.ngrok-free.app/process",
+        "url": "https://f53b45295e89.ngrok-free.app/process",
         "method": "POST",
         "auth": {
           "type": "bearer",
