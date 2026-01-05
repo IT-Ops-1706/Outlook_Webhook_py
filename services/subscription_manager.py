@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Set
 import config
 from services.graph_service import graph_service
+from services.config_service import config_service
 
 logger = logging.getLogger(__name__)
 
