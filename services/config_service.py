@@ -78,6 +78,15 @@ class ConfigService:
         except Exception as e:
             logger.error(f"Error loading from database: {e}")
             raise
+    
+    async def reload(self):
+        """
+        Reload configuration from file by clearing cache.
+        Called after configuration file is modified via API.
+        """
+        self._utilities_cache = None
+        self._cache_time = 0
+        logger.info("Configuration cache cleared, will reload on next request")
 
 # Global instance
 config_service = ConfigService()

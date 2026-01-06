@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from api.webhook import router as webhook_router
 from api.test_endpoints import router as test_router
+from api.utilities_management import router as utilities_router
 from utils.logging_config import setup_logging
 from services.subscription_manager import subscription_manager
 from services.config_service import config_service
@@ -32,30 +33,24 @@ async def subscription_maintenance_loop():
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown"""
     # Startup
-    logger.info("=" * 60)
+    logger.info("============================================================")
     logger.info("Centralized Email Webhook System Starting")
-    logger.info("=" * 60)
+    logger.info("============================================================")
     
-    # Wait for network to be ready
-    await asyncio.sleep(5)
+    # Ensure webhook subscriptions exist
+    logger.info("Ensuring webhook subscriptions...")
+    utilities = await config_service.get_all_utilities()
+    await subscription_manager.ensure_all_subscriptions(utilities)
+    logger.info("Subscriptions verified")
     
-    # Ensure all subscriptions exist
-    try:
-        logger.info("Ensuring webhook subscriptions...")
-        utilities = await config_service.get_all_utilities()
-        await subscription_manager.ensure_all_subscriptions(utilities)
-        logger.info("Subscriptions verified")
-    except Exception as e:
-        logger.error(f"Error setting up subscriptions: {e}")
-    
-    # Start maintenance loop
-    maintenance_task = asyncio.create_task(subscription_maintenance_loop())
-    
-    logger.info(f"Configuration loaded from: config/utility_rules.json")
+    logger.info(f"Configuration loaded from: {config_service.json_path}")
     logger.info(f"Max concurrent forwards: {config.MAX_CONCURRENT_FORWARDS}")
     logger.info(f"Batch size: {config.BATCH_SIZE}")
     logger.info("Server ready to receive webhook notifications")
+    
+    # Start subscription renewal background task
     logger.info("Subscription auto-renewal active (every 12 hours)")
+    maintenance_task = asyncio.create_task(subscription_maintenance_loop())
     
     yield
     
@@ -74,6 +69,7 @@ app = FastAPI(
 # Include routers
 app.include_router(webhook_router, tags=["webhook"])
 app.include_router(test_router, tags=["testing"])
+app.include_router(utilities_router, tags=["management"])
 
 @app.get("/")
 async def root():
