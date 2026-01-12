@@ -205,6 +205,59 @@
       },
       "timeout": 30,
       "enrich_employee_data": true
+    },
+    {
+      "id": "doc-processor",
+      "name": "Document Processing Utility",
+      "enabled": true,
+      "subscriptions": {
+        "mailboxes": [
+          {
+            "address": "icegate.impexcube@babajishivram.com",
+            "folders": [
+              "Inbox"
+            ]
+          }
+        ]
+      },
+      "pre_filters": {
+        "condition_groups": [
+          {
+            "name": "ICEGATE Emails",
+            "logic": "AND",
+            "conditions": [
+              {
+                "field": "from_address",
+                "operator": "equals",
+                "value": "noreply@icegate.gov.in",
+                "case_sensitive": false
+              },
+              {
+                "field": "subject",
+                "operator": "regex",
+                "value": "Electronic ([\\w\\s]+) copy of (BoE|SB) for (?:Bill of Entry|Shipping Bill) No(\\d+)Dt(\\d+)",
+                "case_sensitive": false
+              },
+              {
+                "field": "has_attachments",
+                "operator": "equals",
+                "value": true
+              }
+            ]
+          }
+        ],
+        "group_logic": "OR"
+      },
+      "endpoint": {
+        "url": "https://7878e2d8ef11.ngrok-free.app/api/v1/utility-1/process",
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "token": "${TOKEN_UTIL_1}"
+        }
+      },
+      "timeout": 30,
+      "enrich_employee_data": false
     }
   ]
 }
