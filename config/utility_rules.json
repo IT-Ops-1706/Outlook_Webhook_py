@@ -200,7 +200,7 @@
         "method": "POST",
         "auth": {
           "type": "bearer",
-          "token": "${TOKEN_UTIL_2}"
+          "token": "${TOKEN_UTIL_1}"
         }
       },
       "timeout": 30,
