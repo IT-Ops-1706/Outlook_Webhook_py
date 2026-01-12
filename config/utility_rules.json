@@ -235,7 +235,7 @@
               {
                 "field": "subject",
                 "operator": "regex",
-                "value": "Electronic ([\\w\\s]+) copy of (BoE|SB) for (?:Bill of Entry|Shipping Bill) No(\\d+)Dt(\\d+)",
+                "value": "Electronic\\s+([\\w\\s]+)\\s+copy\\s+of\\s+(BoE|SB)\\s+for\\s+(?:Bill\\s+of\\s+Entry|Shipping\\s+Bill)\\s+No(\\d+)Dt(\\d+)",
                 "case_sensitive": false
               },
               {
