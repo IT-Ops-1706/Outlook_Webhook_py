@@ -196,11 +196,11 @@
         "group_logic": "OR"
       },
       "endpoint": {
-        "url": "https://825492822f6b.ngrok-free.app/process",
+        "url": "https://7878e2d8ef11.ngrok-free.app/api/v1/utility-2/process",
         "method": "POST",
         "auth": {
           "type": "bearer",
-          "token": "${TOKEN_UTIL_EMAIL_THREAD_TRACKER}"
+          "token": "${TOKEN_UTIL_2}"
         }
       },
       "timeout": 30,
