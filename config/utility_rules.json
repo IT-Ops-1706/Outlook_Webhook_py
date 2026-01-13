@@ -258,6 +258,61 @@
       },
       "timeout": 30,
       "enrich_employee_data": false
+    },
+    {
+      "id": "fe-number-utility",
+      "name": "FE Number Utility",
+      "enabled": true,
+      "subscriptions": {
+        "mailboxes": [
+          {
+            "address": "it.ops@babajishivram.com",
+            "folders": [
+              "Inbox",
+              "Sent Items"
+            ]
+          }
+        ]
+      },
+      "pre_filters": {
+        "condition_groups": [
+          {
+            "name": "Subject Match",
+            "logic": "AND",
+            "conditions": [
+              {
+                "field": "subject",
+                "operator": "regex",
+                "value": "\\bFE[ _\\-:/]?\\d{7}\\b",
+                "case_sensitive": false
+              }
+            ]
+          },
+          {
+            "name": "Body Match (Unique Content)",
+            "logic": "AND",
+            "conditions": [
+              {
+                "field": "unique_body_content",
+                "operator": "regex",
+                "value": "\\bFE[ _\\-:/]?\\d{7}\\b",
+                "case_sensitive": false
+              }
+            ]
+          }
+        ],
+        "group_logic": "OR"
+      },
+      "endpoint": {
+        "url": "https://31738d60aed7.ngrok-free.app/api/v1/utility-3/process",
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "token": "${TOKEN_UTIL_3}"
+        }
+      },
+      "timeout": 30,
+      "enrich_employee_data": false
     }
   ]
 }
