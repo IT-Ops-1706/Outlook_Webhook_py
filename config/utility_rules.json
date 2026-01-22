@@ -196,7 +196,7 @@
         "group_logic": "OR"
       },
       "endpoint": {
-        "url": "https://a7bae01d5f9e.ngrok-free.app/api/v1/utility-2/process",
+        "url": "https://8cc7cea5b254.ngrok-free.app/api/v1/utility-2/process",
         "method": "POST",
         "auth": {
           "type": "bearer",
@@ -249,7 +249,7 @@
         "group_logic": "OR"
       },
       "endpoint": {
-        "url": "https://a7bae01d5f9e.ngrok-free.app/api/v1/utility-1/process",
+        "url": "https://8cc7cea5b254.ngrok-free.app/api/v1/utility-1/process",
         "method": "POST",
         "auth": {
           "type": "bearer",
@@ -304,7 +304,7 @@
         "group_logic": "OR"
       },
       "endpoint": {
-        "url": "https://a7bae01d5f9e.ngrok-free.app/api/v1/utility-3/process",
+        "url": "https://8cc7cea5b254.ngrok-free.app/api/v1/utility-3/process",
         "method": "POST",
         "auth": {
           "type": "bearer",
