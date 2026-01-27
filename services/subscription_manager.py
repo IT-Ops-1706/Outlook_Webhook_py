@@ -1,4 +1,4 @@
-import requests
+import aiohttp
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Set
@@ -14,9 +14,9 @@ class SubscriptionManager:
     def __init__(self):
         self.graph = graph_service
     
-    def create_subscription(self, mailbox: str, folder: str = "Inbox") -> dict:
+    async def create_subscription(self, mailbox: str, folder: str = "Inbox") -> dict:
         """Create a new webhook subscription"""
-        token = self.graph.get_access_token()
+        token = await self.graph.get_access_token()
         
         # Determine resource and changeType based on folder
         if folder == "Sent Items":
@@ -46,25 +46,25 @@ class SubscriptionManager:
         }
         
         try:
-            response = requests.post(
+            session = await self.graph._get_session()
+            async with session.post(
                 'https://graph.microsoft.com/v1.0/subscriptions',
                 json=subscription_data,
                 headers=headers
-            )
-            response.raise_for_status()
-            
-            subscription = response.json()
-            logger.info(f"Created subscription {subscription['id']} for {mailbox}/{folder}")
-            return subscription
+            ) as response:
+                response.raise_for_status()
+                
+                subscription = await response.json()
+                logger.info(f"Created subscription {subscription['id']} for {mailbox}/{folder}")
+                return subscription
         
-        except requests.exceptions.HTTPError as e:
+        except aiohttp.ClientResponseError as e:
             logger.error(f"Failed to create subscription: {e}")
-            logger.error(f"Response: {e.response.text}")
             raise
     
-    def list_subscriptions(self) -> List[dict]:
+    async def list_subscriptions(self) -> List[dict]:
         """List all active subscriptions"""
-        token = self.graph.get_access_token()
+        token = await self.graph.get_access_token()
         
         headers = {
             'Authorization': f'Bearer {token}',
@@ -72,23 +72,25 @@ class SubscriptionManager:
         }
         
         try:
-            response = requests.get(
+            session = await self.graph._get_session()
+            async with session.get(
                 'https://graph.microsoft.com/v1.0/subscriptions',
                 headers=headers
-            )
-            response.raise_for_status()
-            
-            subscriptions = response.json().get('value', [])
-            logger.info(f"Found {len(subscriptions)} active subscriptions")
-            return subscriptions
+            ) as response:
+                response.raise_for_status()
+                
+                data = await response.json()
+                subscriptions = data.get('value', [])
+                logger.info(f"Found {len(subscriptions)} active subscriptions")
+                return subscriptions
         
         except Exception as e:
             logger.error(f"Failed to list subscriptions: {e}")
             raise
     
-    def delete_subscription(self, subscription_id: str) -> bool:
+    async def delete_subscription(self, subscription_id: str) -> bool:
         """Delete a subscription"""
-        token = self.graph.get_access_token()
+        token = await self.graph.get_access_token()
         
         headers = {
             'Authorization': f'Bearer {token}',
@@ -96,22 +98,23 @@ class SubscriptionManager:
         }
         
         try:
-            response = requests.delete(
+            session = await self.graph._get_session()
+            async with session.delete(
                 f'https://graph.microsoft.com/v1.0/subscriptions/{subscription_id}',
                 headers=headers
-            )
-            response.raise_for_status()
-            
-            logger.info(f"Deleted subscription {subscription_id}")
-            return True
+            ) as response:
+                response.raise_for_status()
+                
+                logger.info(f"Deleted subscription {subscription_id}")
+                return True
         
         except Exception as e:
             logger.error(f"Failed to delete subscription: {e}")
             raise
     
-    def renew_subscription(self, subscription_id: str) -> dict:
+    async def renew_subscription(self, subscription_id: str) -> dict:
         """Renew an existing subscription"""
-        token = self.graph.get_access_token()
+        token = await self.graph.get_access_token()
         
         # Extend by 3 days
         expiration = datetime.utcnow() + timedelta(days=2, hours=23)
@@ -126,16 +129,17 @@ class SubscriptionManager:
         }
         
         try:
-            response = requests.patch(
+            session = await self.graph._get_session()
+            async with session.patch(
                 f'https://graph.microsoft.com/v1.0/subscriptions/{subscription_id}',
                 json=data,
                 headers=headers
-            )
-            response.raise_for_status()
-            
-            subscription = response.json()
-            logger.info(f"Renewed subscription {subscription_id} until {subscription['expirationDateTime']}")
-            return subscription
+            ) as response:
+                response.raise_for_status()
+                
+                subscription = await response.json()
+                logger.info(f"Renewed subscription {subscription_id} until {subscription['expirationDateTime']}")
+                return subscription
         
         except Exception as e:
             logger.error(f"Failed to renew subscription: {e}")
@@ -164,11 +168,11 @@ class SubscriptionManager:
         logger.info(f"Need subscriptions for {len(needed_subscriptions)} unique mailbox/folder combinations")
         
         # Get existing subscriptions and clean up duplicates
-        existing = self.list_subscriptions()
+        existing = await self.list_subscriptions()
         
         if len(existing) > len(needed_subscriptions):
             logger.info(f"Cleaning up duplicate/orphaned subscriptions ({len(existing)} existing, {len(needed_subscriptions)} needed)...")
-            subscription_map = self.cleanup_duplicate_subscriptions(existing, needed_subscriptions)
+            subscription_map = await self.cleanup_duplicate_subscriptions(existing, needed_subscriptions)
         else:
             # No cleanup needed, just map existing subscriptions
             subscription_map = {}
@@ -187,7 +191,7 @@ class SubscriptionManager:
             if key not in subscription_map:
                 logger.info(f"Creating subscription for {mailbox}/{folder}")
                 try:
-                    sub = self.create_subscription(mailbox, folder)
+                    sub = await self.create_subscription(mailbox, folder)
                     subscription_map[key] = sub['id']
                 except Exception as e:
                     logger.error(f"Failed to create subscription for {key}: {e}")
@@ -217,7 +221,7 @@ class SubscriptionManager:
         
         return None, None
     
-    def cleanup_duplicate_subscriptions(self, existing_subscriptions: List[dict], needed_subscriptions: Set[tuple]) -> Dict[str, str]:
+    async def cleanup_duplicate_subscriptions(self, existing_subscriptions: List[dict], needed_subscriptions: Set[tuple]) -> Dict[str, str]:
         """
         Clean up duplicate subscriptions, keeping only the latest for each mailbox/folder.
         Also removes orphaned subscriptions not in needed_subscriptions.
@@ -247,7 +251,7 @@ class SubscriptionManager:
                 logger.info(f"Removing orphaned subscription(s) for {key} (no longer in config)")
                 for sub in subs:
                     try:
-                        self.delete_subscription(sub['id'])
+                        await self.delete_subscription(sub['id'])
                     except Exception as e:
                         logger.error(f"Failed to delete orphaned subscription {sub['id']}: {e}")
                 continue
@@ -272,7 +276,7 @@ class SubscriptionManager:
                 for sub in subs_sorted[1:]:
                     try:
                         logger.info(f"Deleting duplicate subscription {sub['id']} for {key} (expires: {sub['expirationDateTime']})")
-                        self.delete_subscription(sub['id'])
+                        await self.delete_subscription(sub['id'])
                     except Exception as e:
                         logger.error(f"Failed to delete duplicate subscription {sub['id']}: {e}")
             else:
@@ -285,7 +289,7 @@ class SubscriptionManager:
     async def check_and_renew_subscriptions(self):
         """Check all subscriptions and renew those expiring soon"""
         try:
-            subscriptions = self.list_subscriptions()
+            subscriptions = await self.list_subscriptions()
             
             # Use timezone-aware datetime (UTC)
             from datetime import timezone
@@ -305,14 +309,14 @@ class SubscriptionManager:
                 if time_left < timedelta(hours=24):
                     logger.info(f"Subscription {sub['id']} expires in {time_left}, renewing...")
                     try:
-                        self.renew_subscription(sub['id'])
+                        await self.renew_subscription(sub['id'])
                         renewed_count += 1
-                    except requests.exceptions.HTTPError as e:
+                    except aiohttp.ClientResponseError as e:
                         # If renewal fails with 400 (expired/invalid), delete and recreate
-                        if e.response.status_code == 400:
+                        if e.status == 400:
                             logger.warning(f"Subscription {sub['id']} cannot be renewed (400 error), will recreate")
                             try:
-                                self.delete_subscription(sub['id'])
+                                await self.delete_subscription(sub['id'])
                                 logger.info(f"Deleted invalid subscription {sub['id']}")
                             except Exception as del_error:
                                 logger.error(f"Failed to delete invalid subscription: {del_error}")
