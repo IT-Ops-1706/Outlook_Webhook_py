@@ -1,5 +1,4 @@
 import logging
-import requests
 from datetime import datetime
 from typing import Optional
 from models.email_metadata import EmailMetadata
@@ -33,10 +32,10 @@ class EmailFetcher:
             mailbox_email = await self._resolve_mailbox(mailbox_id)
             
             # Fetch email from Graph API
-            email_data = self.graph.fetch_email(mailbox_id, message_id)
+            email_data = await self.graph.fetch_email(mailbox_id, message_id)
             
             # Resolve folder name from parentFolderId
-            folder = self._get_folder_name(email_data.get('parentFolderId', ''), mailbox_email)
+            folder = await self._get_folder_name(email_data.get('parentFolderId', ''), mailbox_email)
             
             # Parse into EmailMetadata
             return self._parse_email(email_data, mailbox_email, folder)
@@ -85,17 +84,17 @@ class EmailFetcher:
         mailbox_lower = mailbox_id.lower()
         if mailbox_lower in all_mailboxes:
             resolved = all_mailboxes[mailbox_lower]
-            logger.info(f"✅ Resolved mailbox: '{mailbox_id}' → '{resolved}'")
+            logger.info(f"Resolved mailbox: '{mailbox_id}' -> '{resolved}'")
             return resolved
         
         # If mailbox_id looks like an email (contains @), return it directly
         if '@' in mailbox_id:
-            logger.info(f"⚠️  Mailbox '{mailbox_id}' not in config, returning as-is")
+            logger.info(f"Mailbox '{mailbox_id}' not in config, returning as-is")
             return mailbox_id
         
         # For GUID-based mailbox_id, resolve to email using Graph API
-        logger.info(f"🔍 Resolving GUID-based mailbox_id: '{mailbox_id}'")
-        resolved_email = self.graph.get_user_email_by_id(mailbox_id)
+        logger.info(f"Resolving GUID-based mailbox_id: '{mailbox_id}'")
+        resolved_email = await self.graph.get_user_email_by_id(mailbox_id)
         
         if resolved_email:
             # Check if resolved email matches config
@@ -105,10 +104,10 @@ class EmailFetcher:
             return resolved_email
         
         # Fallback: return original mailbox_id (Graph API called it, so it should work)
-        logger.warning(f"⚠️  Could not resolve GUID '{mailbox_id}', using as-is")
+        logger.warning(f"Could not resolve GUID '{mailbox_id}', using as-is")
         return mailbox_id
     
-    def _get_folder_name(self, folder_id: str, mailbox: str) -> str:
+    async def _get_folder_name(self, folder_id: str, mailbox: str) -> str:
         """Get folder display name from ID"""
         if not folder_id:
             return "Inbox"
@@ -118,18 +117,22 @@ class EmailFetcher:
             return self._folder_cache[cache_key]
         
         try:
-            token = self.graph.get_access_token()
+            token = await self.graph.get_access_token()
             url = f'https://graph.microsoft.com/v1.0/users/{mailbox}/mailFolders/{folder_id}'
             
-            response = requests.get(url, headers={
+            headers = {
                 'Authorization': f'Bearer {token}',
                 'Content-Type': 'application/json'
-            })
+            }
             
-            if response.status_code == 200:
-                folder_name = response.json().get('displayName', 'Inbox')
-                self._folder_cache[cache_key] = folder_name
-                return folder_name
+            # Use graph service's session
+            session = await self.graph._get_session()
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    folder_name = data.get('displayName', 'Inbox')
+                    self._folder_cache[cache_key] = folder_name
+                    return folder_name
         except Exception as e:
             logger.debug(f"Could not resolve folder: {e}")
         

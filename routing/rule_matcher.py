@@ -64,7 +64,7 @@ class RuleMatcher:
         if 'condition_groups' in filters:
             result = RuleMatcher._matches_advanced_filters(email, filters, utility)
             if not result:
-                logger.info(f"❌ Filter mismatch for '{email.subject}': Advanced filters did not match")
+                logger.info(f"Filter mismatch for '{email.subject}': Advanced filters did not match")
             return result
         
         # Fallback to legacy filter format (backward compatibility)

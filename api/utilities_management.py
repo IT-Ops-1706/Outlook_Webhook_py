@@ -180,21 +180,27 @@ async def create_utility(
                 detail=f"Missing required fields: {', '.join(missing)}"
             )
         
-        # Load current config
+        # TRANSACTION PATTERN: Create subscription FIRST (can fail safely)
+        # If subscription creation fails, config file remains unchanged
+        new_utility = UtilityConfig.from_dict(utility_data)
+        
+        try:
+            logger.info(f"Creating subscriptions for new utility: {utility_id}")
+            await subscription_manager.ensure_all_subscriptions([new_utility])
+        except Exception as e:
+            logger.error(f"Failed to create subscriptions for {utility_id}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Subscription creation failed: {str(e)}. Config not modified."
+            )
+        
+        # Only save config if subscription succeeded
         config = load_config()
-        
-        # Add new utility
         config['utilities'].append(utility_data)
-        
-        # Save config
         save_config(config)
         
         # Reload config service cache
         await config_service.reload()
-        
-        # Create subscriptions for new utility
-        new_utility = UtilityConfig.from_dict(utility_data)
-        await subscription_manager.ensure_all_subscriptions([new_utility])
         
         logger.info(f"Created new utility: {utility_id}")
         
@@ -249,19 +255,35 @@ async def update_utility(
                 detail=f"Utility '{utility_id}' not found"
             )
         
+        # TRANSACTION PATTERN: Save old config for rollback
+        old_utility_data = config['utilities'][idx].copy()
+        
         # Preserve ID (cannot be changed)
         utility_data['id'] = utility_id
         
-        # Update utility
+        # Update utility in config
         config['utilities'][idx] = utility_data
         
         # Save config
         save_config(config)
         
-        # Reload and update subscriptions
-        await config_service.reload()
-        utilities = await config_service.get_all_utilities()
-        await subscription_manager.ensure_all_subscriptions(utilities)
+        # Reload and try to update subscriptions
+        try:
+            await config_service.reload()
+            utilities = await config_service.get_all_utilities()
+            logger.info(f"Updating subscriptions for utility: {utility_id}")
+            await subscription_manager.ensure_all_subscriptions(utilities)
+        except Exception as sub_error:
+            # ROLLBACK: Restore old config
+            logger.error(f"Subscription update failed for {utility_id}, rolling back: {sub_error}")
+            config['utilities'][idx] = old_utility_data
+            save_config(config)
+            await config_service.reload()
+            
+            raise HTTPException(
+                status_code=500,
+                detail=f"Subscription update failed: {str(sub_error)}. Config rolled back."
+            )
         
         logger.info(f"Updated utility: {utility_id}")
         
@@ -323,6 +345,9 @@ async def partial_update_utility(
                 detail=f"Utility '{utility_id}' not found"
             )
         
+        # TRANSACTION PATTERN: Save old utility for rollback
+        old_utility = utility.copy()
+        
         # Apply updates
         utility.update(updates)
         
@@ -334,8 +359,22 @@ async def partial_update_utility(
         
         # If subscriptions or enabled status changed, update subscriptions
         if 'subscriptions' in updates or 'enabled' in updates:
-            utilities = await config_service.get_all_utilities()
-            await subscription_manager.ensure_all_subscriptions(utilities)
+            try:
+                logger.info(f"Updating subscriptions for utility: {utility_id}")
+                utilities = await config_service.get_all_utilities()
+                await subscription_manager.ensure_all_subscriptions(utilities)
+            except Exception as sub_error:
+                # ROLLBACK: Restore old utility
+                logger.error(f"Subscription update failed for {utility_id}, rolling back: {sub_error}")
+                idx = next(i for i, u in enumerate(config['utilities']) if u['id'] == utility_id)
+                config['utilities'][idx] = old_utility
+                save_config(config)
+                await config_service.reload()
+                
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Subscription update failed: {str(sub_error)}. Config rolled back."
+                )
         
         logger.info(f"Partially updated utility: {utility_id}, fields: {list(updates.keys())}")
         

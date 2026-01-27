@@ -1,4 +1,4 @@
-import requests
+import aiohttp
 import time
 import logging
 from typing import Optional
@@ -15,8 +15,15 @@ class GraphService:
         self.tenant_id = config.TENANT_ID
         self._token = None
         self._token_expiry = 0
+        self._session = None
     
-    def get_access_token(self) -> str:
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create aiohttp session"""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
+    
+    async def get_access_token(self) -> str:
         """Get OAuth access token with caching"""
         current_time = time.time()
         
@@ -35,24 +42,25 @@ class GraphService:
         }
         
         try:
-            response = requests.post(token_url, data=data)
-            response.raise_for_status()
-            
-            token_data = response.json()
-            self._token = token_data['access_token']
-            # Cache for 50 minutes (tokens valid for 60 minutes)
-            self._token_expiry = current_time + 3000
-            
-            logger.info("Access token obtained successfully")
-            return self._token
+            session = await self._get_session()
+            async with session.post(token_url, data=data) as response:
+                response.raise_for_status()
+                
+                token_data = await response.json()
+                self._token = token_data['access_token']
+                # Cache for 50 minutes (tokens valid for 60 minutes)
+                self._token_expiry = current_time + 3000
+                
+                logger.info("Access token obtained successfully")
+                return self._token
         
         except Exception as e:
             logger.error(f"Failed to get access token: {e}")
             raise
     
-    def fetch_email(self, mailbox: str, message_id: str) -> dict:
+    async def fetch_email(self, mailbox: str, message_id: str) -> dict:
         """Fetch full email metadata from Microsoft Graph"""
-        token = self.get_access_token()
+        token = await self.get_access_token()
         
         url = f'https://graph.microsoft.com/v1.0/users/{mailbox}/messages/{message_id}'
         
@@ -72,18 +80,19 @@ class GraphService:
         }
         
         try:
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            
-            email_data = response.json()
-            logger.debug(f"Fetched email: {email_data.get('subject', 'No subject')[:50]}")
-            return email_data
+            session = await self._get_session()
+            async with session.get(url, headers=headers, params=params) as response:
+                response.raise_for_status()
+                
+                email_data = await response.json()
+                logger.debug(f"Fetched email: {email_data.get('subject', 'No subject')[:50]}")
+                return email_data
         
         except Exception as e:
             logger.error(f"Failed to fetch email {message_id}: {e}")
             raise
     
-    def fetch_user_details(self, email_address: str) -> Optional[dict]:
+    async def fetch_user_details(self, email_address: str) -> Optional[dict]:
         """
         Fetch user details from Microsoft Graph (department, office, location)
         
@@ -99,7 +108,7 @@ class GraphService:
             logger.debug(f"Skipping employee data fetch for external user: {email_address}")
             return None
         
-        token = self.get_access_token()
+        token = await self.get_access_token()
         
         url = f'https://graph.microsoft.com/v1.0/users/{email_address}'
         
@@ -113,33 +122,33 @@ class GraphService:
         }
         
         try:
-            response = requests.get(url, headers=headers, params=params)
-            
-            # User not found in organization
-            if response.status_code == 404:
-                logger.debug(f"User {email_address} not found in organization")
-                return None
-            
-            response.raise_for_status()
-            
-            user_data = response.json()
-            logger.debug(f"Fetched user details for: {email_address}")
-            
-            return {
-                'email': user_data.get('mail', email_address),
-                'display_name': user_data.get('displayName', ''),
-                'department': user_data.get('department', ''),
-                'office_location': user_data.get('officeLocation', ''),
-                'city': user_data.get('city', ''),
-                'country': user_data.get('country', ''),
-                'job_title': user_data.get('jobTitle', '')
-            }
+            session = await self._get_session()
+            async with session.get(url, headers=headers, params=params) as response:
+                # User not found in organization
+                if response.status == 404:
+                    logger.debug(f"User {email_address} not found in organization")
+                    return None
+                
+                response.raise_for_status()
+                
+                user_data = await response.json()
+                logger.debug(f"Fetched user details for: {email_address}")
+                
+                return {
+                    'email': user_data.get('mail', email_address),
+                    'display_name': user_data.get('displayName', ''),
+                    'department': user_data.get('department', ''),
+                    'office_location': user_data.get('officeLocation', ''),
+                    'city': user_data.get('city', ''),
+                    'country': user_data.get('country', ''),
+                    'job_title': user_data.get('jobTitle', '')
+                }
         
         except Exception as e:
             logger.error(f"Failed to fetch user details for {email_address}: {e}")
             return None
     
-    def get_user_email_by_id(self, user_id: str) -> Optional[str]:
+    async def get_user_email_by_id(self, user_id: str) -> Optional[str]:
         """
         Resolve a user GUID to their email address.
         
@@ -153,7 +162,7 @@ class GraphService:
         if '@' in user_id:
             return user_id
         
-        token = self.get_access_token()
+        token = await self.get_access_token()
         
         url = f'https://graph.microsoft.com/v1.0/users/{user_id}'
         
@@ -167,24 +176,31 @@ class GraphService:
         }
         
         try:
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            
-            user_data = response.json()
-            
-            # Prefer 'mail' property, fallback to 'userPrincipalName'
-            email = user_data.get('mail') or user_data.get('userPrincipalName')
-            
-            if email:
-                logger.info(f"✅ Resolved GUID '{user_id}' → '{email}'")
-                return email
-            else:
-                logger.warning(f"User {user_id} found but has no email address")
-                return None
+            session = await self._get_session()
+            async with session.get(url, headers=headers, params=params) as response:
+                response.raise_for_status()
+                
+                user_data = await response.json()
+                
+                # Prefer 'mail' property, fallback to 'userPrincipalName'
+                email = user_data.get('mail') or user_data.get('userPrincipalName')
+                
+                if email:
+                    logger.info(f"Resolved GUID '{user_id}' -> '{email}'")
+                    return email
+                else:
+                    logger.warning(f"User {user_id} found but has no email address")
+                    return None
         
         except Exception as e:
             logger.error(f"Failed to resolve user GUID {user_id}: {e}")
             return None
+    
+    async def close(self):
+        """Close aiohttp session on shutdown"""
+        if self._session and not self._session.closed:
+            await self._session.close()
+            logger.info("Graph API session closed")
 
 # Global instance
 graph_service = GraphService()

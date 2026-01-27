@@ -45,7 +45,7 @@ class SimpleDeduplicator:
         key = internet_message_id
         
         if key in self._cache:
-            logger.debug(f"⏭️  Duplicate detected: {internet_message_id} (folder: {folder})")
+            logger.debug(f"Duplicate detected: {internet_message_id} (folder: {folder})")
             return True
         
         # Add to cache with current timestamp

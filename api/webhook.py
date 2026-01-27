@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Query
+from fastapi import APIRouter, Request, Query, HTTPException
 from fastapi.responses import PlainTextResponse
 import asyncio
 import logging
@@ -29,7 +29,17 @@ async def webhook_notification(
     data = await request.json()
     notifications = data.get('value', [])
     
-    logger.info(f"📬 Received {len(notifications)} webhook notification(s)")
+    # Validate clientState for security
+    for notification in notifications:
+        client_state = notification.get('clientState')
+        if client_state != config.WEBHOOK_CLIENT_STATE:
+            logger.warning(
+                f"Invalid clientState received from {request.client.host}. "
+                f"Expected: {config.WEBHOOK_CLIENT_STATE}, Got: {client_state}"
+            )
+            raise HTTPException(status_code=403, detail="Forbidden: Invalid client state")
+    
+    logger.info(f"Received {len(notifications)} webhook notification(s)")
     
     # Fire and forget - respond immediately to Microsoft
     asyncio.create_task(process_notifications(notifications))
@@ -65,10 +75,10 @@ async def process_single_email(notification: dict, utilities: list):
         # Step 1.5: Check for duplicates (safety net for Exchange)
         from utils.deduplication import simple_deduplicator
         if simple_deduplicator.is_duplicate(email.internet_message_id, email.folder):
-            logger.info(f"⏭️  Skipping duplicate: {email.subject[:50]}")
+            logger.info(f"Skipping duplicate: {email.subject[:50]}")
             return
         
-        logger.info(f"📧 Email: '{email.subject}' | From: {email.from_address} | Folder: {email.folder}")
+        logger.info(f"Email: '{email.subject}' | From: {email.from_address} | Folder: {email.folder}")
         
         # Step 2: Match against utility rules
         matched = await RuleMatcher.find_matching_utilities(email, utilities)
@@ -98,7 +108,7 @@ async def enrich_employee_data(email):
     
     # Enrich sender
     if email.from_address:
-        sender_details = graph_service.fetch_user_details(email.from_address)
+        sender_details = await graph_service.fetch_user_details(email.from_address)
         if sender_details:
             email.sender_employee_data = sender_details
     
@@ -107,7 +117,7 @@ async def enrich_employee_data(email):
     for recipient in email.to_recipients:
         recipient_email = recipient.get('address')
         if recipient_email:
-            details = graph_service.fetch_user_details(recipient_email)
+            details = await graph_service.fetch_user_details(recipient_email)
             if details:
                 email.recipient_employee_data.append({
                     'email': recipient_email,

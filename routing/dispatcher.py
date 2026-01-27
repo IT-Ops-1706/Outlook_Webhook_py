@@ -22,7 +22,7 @@ class Dispatcher:
         if not utilities:
             return
         
-        logger.info(f"📤 Dispatching to {len(utilities)} utility(ies)")
+        logger.info(f"Dispatching to {len(utilities)} utility(ies)")
         
         tasks = [
             Dispatcher._forward(email, utility)
@@ -34,9 +34,9 @@ class Dispatcher:
         # Log results
         for utility, result in zip(utilities, results):
             if isinstance(result, Exception):
-                logger.error(f"❌ {utility.name}: {result}")
+                logger.error(f"FAILED - {utility.name}: {result}")
             else:
-                logger.info(f"✅ {utility.name}: Success")
+                logger.info(f"SUCCESS - {utility.name}")
     
     @staticmethod
     async def _forward(email: EmailMetadata, utility: UtilityConfig):

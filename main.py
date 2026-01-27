@@ -57,6 +57,10 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down Centralized Email Webhook System")
     maintenance_task.cancel()
+    
+    # Close Graph API session
+    from services.graph_service import graph_service
+    await graph_service.close()
 
 # Create FastAPI app with lifespan
 app = FastAPI(
@@ -86,11 +90,69 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {
+    """Enhanced health check endpoint with dependency validation"""
+    from services.graph_service import graph_service
+    from services.subscription_manager import subscription_manager
+    
+    health_status = {
         "status": "healthy",
-        "service": "email_webhook"
+        "service": "email_webhook",
+        "checks": {}
     }
+    
+    # Check 1: Graph API connectivity
+    try:
+        await graph_service.get_access_token()
+        health_status["checks"]["graph_api"] = {
+            "status": "ok",
+            "message": "Successfully authenticated with Microsoft Graph"
+        }
+    except Exception as e:
+        health_status["status"] = "unhealthy"
+        health_status["checks"]["graph_api"] = {
+            "status": "error",
+            "message": f"Failed to authenticate: {str(e)}"
+        }
+    
+    # Check 2: Active subscriptions
+    try:
+        subs = subscription_manager.list_subscriptions()
+        health_status["checks"]["subscriptions"] = {
+            "status": "ok" if len(subs) > 0 else "warning",
+            "count": len(subs),
+            "message": f"{len(subs)} active subscription(s)"
+        }
+    except Exception as e:
+        health_status["status"] = "degraded"
+        health_status["checks"]["subscriptions"] = {
+            "status": "error",
+            "message": f"Failed to list subscriptions: {str(e)}"
+        }
+    
+    # Check 3: Config file accessibility
+    try:
+        utilities = await config_service.get_all_utilities()
+        health_status["checks"]["config"] = {
+            "status": "ok",
+            "utilities_count": len(utilities),
+            "message": f"{len(utilities)} utility(ies) configured"
+        }
+    except Exception as e:
+        health_status["status"] = "unhealthy"
+        health_status["checks"]["config"] = {
+            "status": "error",
+            "message": f"Failed to load config: {str(e)}"
+        }
+    
+    # Determine HTTP status code
+    status_code = 200
+    if health_status["status"] == "degraded":
+        status_code = 200  # Still operational
+    elif health_status["status"] == "unhealthy":
+        status_code = 503  # Service unavailable
+    
+    from fastapi.responses import JSONResponse
+    return JSONResponse(content=health_status, status_code=status_code)
 
 if __name__ == "__main__":
     logger.info("Starting server...")
