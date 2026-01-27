@@ -16,7 +16,7 @@ async def test_fetch_emails(
 ):
     """Test endpoint to fetch latest emails from a mailbox"""
     try:
-        token = graph_service.get_access_token()
+        token = await graph_service.get_access_token()
         
         url = f'https://graph.microsoft.com/v1.0/users/{mailbox}/messages'
         params = {
@@ -31,11 +31,11 @@ async def test_fetch_emails(
             'Content-Type': 'application/json'
         }
         
-        import requests
-        response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
-        
-        emails = response.json().get('value', [])
+        session = await graph_service._get_session()
+        async with session.get(url, headers=headers, params=params) as response:
+            response.raise_for_status()
+            data = await response.json()
+            emails = data.get('value', [])
         
         # Format for display
         result = {
@@ -73,7 +73,7 @@ async def test_fetch_emails(
 async def list_subscriptions(auth: str = Depends(verify_bearer_token)):
     """List all active webhook subscriptions"""
     try:
-        subscriptions = subscription_manager.list_subscriptions()
+        subscriptions = await subscription_manager.list_subscriptions()
         
         return {
             "count": len(subscriptions),
@@ -101,7 +101,7 @@ async def create_subscription(
 ):
     """Create a new webhook subscription"""
     try:
-        subscription = subscription_manager.create_subscription(mailbox, folder)
+        subscription = await subscription_manager.create_subscription(mailbox, folder)
         
         return {
             "success": True,
@@ -127,7 +127,7 @@ async def delete_subscription(
 ):
     """Delete a webhook subscription"""
     try:
-        subscription_manager.delete_subscription(subscription_id)
+        await subscription_manager.delete_subscription(subscription_id)
         return {"success": True, "message": f"Deleted subscription {subscription_id}"}
     
     except Exception as e:
@@ -175,7 +175,7 @@ async def test_employee_details(
         logger.info(f"Fetching employee details for: {email}")
         
         # Fetch employee details
-        employee_data = graph_service.fetch_user_details(email)
+        employee_data = await graph_service.fetch_user_details(email)
         
         if employee_data:
             return {
@@ -207,14 +207,14 @@ async def cleanup_subscriptions(auth: str = Depends(verify_bearer_token)):
         logger.info("Starting subscription cleanup...")
         
         # Get all current subscriptions
-        current_subs = subscription_manager.list_subscriptions()
+        current_subs = await subscription_manager.list_subscriptions()
         logger.info(f"Found {len(current_subs)} existing subscriptions")
         
         # Delete all
         deleted_count = 0
         for sub in current_subs:
             try:
-                subscription_manager.delete_subscription(sub['id'])
+                await subscription_manager.delete_subscription(sub['id'])
                 deleted_count += 1
                 logger.info(f"Deleted subscription: {sub['id']}")
             except Exception as e:
@@ -249,7 +249,7 @@ async def cleanup_subscriptions(auth: str = Depends(verify_bearer_token)):
                 }
                 for sub in subscription_list
             ],
-            "message": f"✅ Cleaned up {deleted_count} old subscriptions, created {len(subscription_list)} fresh ones"
+            "message": f"Cleaned up {deleted_count} old subscriptions, created {len(subscription_list)} fresh ones"
         }
     
     except Exception as e:

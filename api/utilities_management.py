@@ -10,7 +10,7 @@ import re
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/utilities", tags=["Utility Management"])
+router = APIRouter(prefix="/api/utilities")
 
 CONFIG_FILE = "config/utility_rules.json"
 
