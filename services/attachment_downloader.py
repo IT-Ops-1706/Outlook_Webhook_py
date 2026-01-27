@@ -34,56 +34,62 @@ class AttachmentDownloader:
         for attempt in range(self.max_retries):
             try:
                 # Get fresh token for each attempt
-                token = self.graph.get_access_token()
+                token = await self.graph.get_access_token()
                 
                 headers = {
                     'Authorization': f'Bearer {token}',
                     'Content-Type': 'application/json'
                 }
                 
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, headers=headers) as response:
-                        # Check for 404 - attachments not yet available
-                        if response.status == 404:
-                            if attempt < self.max_retries - 1:
-                                logger.warning(
-                                    f"📎 Attachments not ready (attempt {attempt + 1}/{self.max_retries}), "
-                                    f"retrying in {self.retry_delay}s..."
-                                )
-                                await asyncio.sleep(self.retry_delay)
-                                continue
-                            else:
-                                logger.error(f"Attachments still not available after {self.max_retries} attempts")
-                                return []
+                # Use graph service's session for connection pooling
+                session = await self.graph._get_session()
+                async with session.get(url, headers=headers) as response:
+                    # Check for 401 - authentication issue
+                    if response.status == 401:
+                        logger.error(f"Authentication failed for attachments (401 Unauthorized)")
+                        return []
+                    
+                    # Check for 404 - attachments not yet available
+                    if response.status == 404:
+                        if attempt < self.max_retries - 1:
+                            logger.warning(
+                                f"Attachments not ready (attempt {attempt + 1}/{self.max_retries}), "
+                                f"retrying in {self.retry_delay}s..."
+                            )
+                            await asyncio.sleep(self.retry_delay)
+                            continue
+                        else:
+                            logger.error(f"Attachments still not available after {self.max_retries} attempts")
+                            return []
+                    
+                    response.raise_for_status()
+                    attachments_data = await response.json()
+                    
+                    attachments = []
+                    for att in attachments_data.get('value', []):
+                        attachment = {
+                            'id': att.get('id'),
+                            'name': att.get('name'),
+                            'content_type': att.get('contentType'),
+                            'size': att.get('size'),
+                            'is_inline': att.get('isInline', False)
+                        }
                         
-                        response.raise_for_status()
-                        attachments_data = await response.json()
-                        
-                        attachments = []
-                        for att in attachments_data.get('value', []):
-                            attachment = {
-                                'id': att.get('id'),
-                                'name': att.get('name'),
-                                'content_type': att.get('contentType'),
-                                'size': att.get('size'),
-                                'is_inline': att.get('isInline', False)
-                            }
+                        # Get content for file attachments
+                        if att.get('@odata.type') == '#microsoft.graph.fileAttachment':
+                            content_bytes_b64 = att.get('contentBytes')
                             
-                            # Get content for file attachments
-                            if att.get('@odata.type') == '#microsoft.graph.fileAttachment':
-                                content_bytes_b64 = att.get('contentBytes')
-                                
-                                if content_bytes_b64:
-                                    try:
-                                        attachment['content'] = base64.b64decode(content_bytes_b64)
-                                    except Exception as e:
-                                        logger.error(f"Failed to decode attachment {attachment['name']}: {e}")
-                                        attachment['content'] = None
+                            if content_bytes_b64:
+                                try:
+                                    attachment['content'] = base64.b64decode(content_bytes_b64)
+                                except Exception as e:
+                                    logger.error(f"Failed to decode attachment {attachment['name']}: {e}")
+                                    attachment['content'] = None
                             
                             attachments.append(attachment)
                             
                             logger.info(
-                                f"📎 Downloaded: {attachment['name']} ({attachment['size']} bytes)"
+                                f"Downloaded: {attachment['name']} ({attachment['size']} bytes)"
                             )
                         
                         return attachments
