@@ -250,7 +250,7 @@
         "group_logic": "OR"
       },
       "endpoint": {
-        "url": "https://ac48589ab45c.ngrok-free.app/api/v1/utility-2/process",
+        "url": "https://6c6bd873219c.ngrok-free.app/api/v1/utility-2/process",
         "method": "POST",
         "auth": {
           "type": "bearer",

@@ -116,7 +116,7 @@ async def health_check():
     
     # Check 2: Active subscriptions
     try:
-        subs = subscription_manager.list_subscriptions()
+        subs = await subscription_manager.list_subscriptions()
         health_status["checks"]["subscriptions"] = {
             "status": "ok" if len(subs) > 0 else "warning",
             "count": len(subs),
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     logger.info("Starting server...")
     uvicorn.run(
         app,
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=config.PORT,
         log_level=config.LOG_LEVEL.lower()
     )

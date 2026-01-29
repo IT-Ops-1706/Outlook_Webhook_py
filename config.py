@@ -11,7 +11,7 @@ TENANT_ID = os.getenv('TENANT_ID')
 # Webhook
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 WEBHOOK_CLIENT_STATE = os.getenv('WEBHOOK_CLIENT_STATE', 'SecretClientState')
-PORT = int(os.getenv('PORT', 8000))
+PORT = int(os.getenv('PORT', 8005))
 
 # Security - Admin API Authentication
 API_BEARER_KEY = os.getenv('API_BEARER_KEY')
