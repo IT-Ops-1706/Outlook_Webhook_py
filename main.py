@@ -32,35 +32,47 @@ async def subscription_maintenance_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown"""
-    # Startup
-    logger.info("============================================================")
-    logger.info("Centralized Email Webhook System Starting")
-    logger.info("============================================================")
+    maintenance_task = None
     
-    # Ensure webhook subscriptions exist
-    logger.info("Ensuring webhook subscriptions...")
-    utilities = await config_service.get_all_utilities()
-    await subscription_manager.ensure_all_subscriptions(utilities)
-    logger.info("Subscriptions verified")
-    
-    logger.info(f"Configuration loaded from: {config_service.json_path}")
-    logger.info(f"Max concurrent forwards: {config.MAX_CONCURRENT_FORWARDS}")
-    logger.info(f"Batch size: {config.BATCH_SIZE}")
-    logger.info("Server ready to receive webhook notifications")
-    
-    # Start subscription renewal background task
-    logger.info("Subscription auto-renewal active (every 12 hours)")
-    maintenance_task = asyncio.create_task(subscription_maintenance_loop())
-    
-    yield
-    
-    # Shutdown
-    logger.info("Shutting down Centralized Email Webhook System")
-    maintenance_task.cancel()
-    
-    # Close Graph API session
-    from services.graph_service import graph_service
-    await graph_service.close()
+    try:
+        # Startup
+        logger.info("============================================================")
+        logger.info("Centralized Email Webhook System Starting")
+        logger.info("============================================================")
+        
+        # Ensure webhook subscriptions exist
+        logger.info("Ensuring webhook subscriptions...")
+        utilities = await config_service.get_all_utilities()
+        await subscription_manager.ensure_all_subscriptions(utilities)
+        logger.info("Subscriptions verified")
+        
+        logger.info(f"Configuration loaded from: {config_service.json_path}")
+        logger.info(f"Max concurrent forwards: {config.MAX_CONCURRENT_FORWARDS}")
+        logger.info(f"Batch size: {config.BATCH_SIZE}")
+        logger.info("Server ready to receive webhook notifications")
+        
+        # Start subscription renewal background task
+        logger.info("Subscription auto-renewal active (every 12 hours)")
+        maintenance_task = asyncio.create_task(subscription_maintenance_loop())
+        
+        yield
+        
+    finally:
+        # Shutdown - always runs even if startup fails
+        logger.info("Shutting down Centralized Email Webhook System")
+        
+        # Cancel maintenance task if it was started
+        if maintenance_task:
+            maintenance_task.cancel()
+            try:
+                await maintenance_task
+            except asyncio.CancelledError:
+                pass
+        
+        # Close Graph API session
+        from services.graph_service import graph_service
+        await graph_service.close()
+        logger.info("Cleanup complete")
 
 # Create FastAPI app with lifespan
 app = FastAPI(

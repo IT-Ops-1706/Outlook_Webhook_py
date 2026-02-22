@@ -52,6 +52,14 @@ class SubscriptionManager:
                 json=subscription_data,
                 headers=headers
             ) as response:
+                if response.status != 201:
+                    # Log detailed error from Microsoft
+                    error_body = await response.text()
+                    logger.error(f"Microsoft Graph rejected subscription creation:")
+                    logger.error(f"Status: {response.status}")
+                    logger.error(f"Response: {error_body}")
+                    logger.error(f"Requested URL: {subscription_data.get('notificationUrl')}")
+                
                 response.raise_for_status()
                 
                 subscription = await response.json()
