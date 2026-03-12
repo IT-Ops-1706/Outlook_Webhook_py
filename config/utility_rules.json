@@ -18,7 +18,7 @@
         "method": "POST",
         "auth": {
           "type": "bearer",
-          "token": "${TOKEN_UTIL_1}"
+          "token": "babajishivram@1706"
         }
       },
       "timeout": 30,
