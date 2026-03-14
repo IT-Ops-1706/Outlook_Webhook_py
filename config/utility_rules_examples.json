@@ -2,23 +2,17 @@
   "utilities": [
     {
       "id": "email_thread_tracker",
-      "name": "Email Thread Tracker - Rate Requests & Urgent Enquiries",
+      "name": "Email Thread Tracker",
       "enabled": true,
       "subscriptions": {
         "mailboxes": [
           {
             "address": "it.ops@babajishivram.com",
-            "folders": [
-              "Inbox",
-              "Sent Items"
-            ]
+            "folders": ["Inbox", "Sent Items"]
           },
           {
             "address": "developer5@babajishivram.com",
-            "folders": [
-              "Inbox",
-              "Sent Items"
-            ]
+            "folders": ["Inbox", "Sent Items"]
           }
         ]
       },

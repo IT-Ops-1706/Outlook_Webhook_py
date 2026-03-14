@@ -2,7 +2,7 @@
   "utilities": [
     {
       "id": "email_thread_tracker",
-      "name": "Email Thread Tracker - Rate Requests & Urgent Enquiries",
+      "name": "Email tracking",
       "enabled": true,
       "subscriptions": {
         "mailboxes": [
@@ -14,7 +14,7 @@
       },
       "pre_filters": {},
       "endpoint": {
-        "url": "https://7d44-2401-4900-57ef-957d-7074-444e-44be-fb40.ngrok-free.app/process",
+        "url": "https://a067-2401-4900-c099-2dda-5d5f-689c-d085-d7b7.ngrok-free.app/process",
         "method": "POST",
         "auth": {
           "type": "bearer",
